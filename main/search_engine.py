@@ -1,6 +1,12 @@
 import re
 from .models import ListWord, ListSense, MapDerived
-from .notation import notation
+from .notation import myanmarNotation
+# --- NLTK Integration ---
+try:
+    from nltk.corpus import wordnet
+except ImportError:
+    # This allows the app to run without NLTK, but thesaurus features will be disabled.
+    wordnet = None
 
 class DictionarySearch:
     """
@@ -32,7 +38,7 @@ class DictionarySearch:
             # --- Handle Numeric Input ---
             if self.current_word.isdigit():
                 self.log.append(f"'{self.current_word}' is numeric. Getting notations from MyanmarNotation module.")
-                notation_data = notation.get(self.current_word)
+                notation_data = myanmarNotation.get(self.current_word)
 
             # --- Standard Word Search Logic ---
 
@@ -212,11 +218,76 @@ class DictionarySearch:
                     "exam": {"type": "examSentence", "value": []}
                 })
 
+        # --- NLTK Integration: Get Synonyms and Antonyms ---
+        if word_entry:
+            thesaurus_data = self._get_wordnet_thesaurus(word_entry.word)
+
+            # Antonyms are now first
+            if thesaurus_data['antonyms']:
+                pos_name = "antonym"
+                if pos_name not in meanings:
+                    meanings[pos_name] = []
+                meanings[pos_name].append({
+                    "term": word_entry.word,
+                    "type": "antonym", # Changed from "meaning"
+                    "tag": ["wordnet", "antonym"],
+                    "sense": f"Words opposite to <{word_entry.word}>.",
+                    "exam": {
+                        "type": "examWord",
+                        "value": thesaurus_data['antonyms']
+                    }
+                })
+            
+            # Synonyms (thesaurus) are second
+            if thesaurus_data['synonyms']:
+                pos_name = "thesaurus"
+                if pos_name not in meanings:
+                    meanings[pos_name] = []
+                meanings[pos_name].append({
+                    "term": word_entry.word,
+                    "type": "thesaurus", # Changed from "meaning"
+                    "tag": ["wordnet", "synonym"],
+                    "sense": f"Words related to <{word_entry.word}>.",
+                    "exam": {
+                        "type": "examWord",
+                        "value": thesaurus_data['synonyms']
+                    }
+                })
+
+
         top_level_word = word_entry.word if word_entry else self.current_word
         if not meanings:
             return []
 
         return [{"word": top_level_word, "clue": {"meaning": meanings}}]
+
+    def _get_wordnet_thesaurus(self, word):
+        """
+        Fetches synonyms and antonyms for a word using NLTK's WordNet.
+        """
+        if not wordnet:
+            self.log.append("NLTK is not installed. Skipping thesaurus search.")
+            return {"synonyms": [], "antonyms": []}
+
+        synonyms = set()
+        antonyms = set()
+        
+        self.log.append(f"Searching WordNet for '{word}'.")
+        for syn in wordnet.synsets(word):
+            for lemma in syn.lemmas():
+                # Add synonyms, replacing underscores with spaces
+                synonyms.add(lemma.name().replace('_', ' '))
+                # Check for antonyms and add them
+                if lemma.antonyms():
+                    for ant in lemma.antonyms():
+                        antonyms.add(ant.name().replace('_', ' '))
+        
+        # Remove the original word from the sets if it exists
+        synonyms.discard(word)
+        antonyms.discard(word)
+
+        self.log.append(f"Found {len(synonyms)} synonyms and {len(antonyms)} antonyms.")
+        return {"synonyms": sorted(list(synonyms)), "antonyms": sorted(list(antonyms))}
 
     def _parse_sense_field(self, raw_text):
         """
@@ -302,4 +373,6 @@ class DictionarySearch:
             "status": self.status,
             "data": self.data
         }
+
+
 

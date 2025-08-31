@@ -1,4 +1,5 @@
-ZOTUNE
-======
+# ZOTUNE
 
-ZOTUNE WEB
+```bash
+python manage.py download_wordnet
+```

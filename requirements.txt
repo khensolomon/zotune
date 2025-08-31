@@ -14,3 +14,4 @@ django
 python-decouple
 mysqlclient
 djangorestframework
+nltk

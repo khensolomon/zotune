@@ -263,7 +263,7 @@ class MyanmarNotation:
         return result
 
 
-notation = MyanmarNotation()
+myanmarNotation = MyanmarNotation()
 # Example usage:
 if __name__ == "__main__":
     converter = MyanmarNotation()

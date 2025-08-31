@@ -80,14 +80,14 @@ def post_detail(request, pk):
     return render(request, 'main/post_detail.html', context)
 
 # 1. Create a custom pagination class (optional, but good practice)
-class StandardResultsSetPagination(pagination.PageNumberPagination):
+class ListWordAPIPagination(pagination.PageNumberPagination):
     page_size = 100  # Number of results per page
     page_size_query_param = 'page_size' # Allows client to set page_size e.g. ?page_size=50
     max_page_size = 1000 # Maximum page size client can request
     # page_query_param = 'p' # Add this line to change "page" to "p"
 
 # --- Create a custom search filter ---
-class CustomSearchFilter(filters.SearchFilter):
+class ListWordAPIFilter(filters.SearchFilter):
     # This is the line that changes the query parameter
     search_param = 'k'
 
@@ -102,8 +102,8 @@ class ListWordAPIView(generics.ListAPIView):
     serializer_class = ListWordSerializer
     
     # Use your new custom filter class
-    filter_backends = [CustomSearchFilter]
-    pagination_class = StandardResultsSetPagination
+    filter_backends = [ListWordAPIFilter]
+    pagination_class = ListWordAPIPagination
     
     search_fields = ['^word']
 
@@ -114,6 +114,7 @@ class DictionarySearchView(views.APIView):
     e.g., /api/search/?q=love
     e.g., /api/search/?q=knowledge is power~power
     """
+
     def get(self, request, *args, **kwargs):
         query = request.query_params.get('q', None)
         
@@ -122,7 +123,7 @@ class DictionarySearchView(views.APIView):
                 {"error": "Query parameter 'q' is required."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-
+ 
         search_engine = DictionarySearch(raw_query=query)
         response_data = search_engine.execute()
 

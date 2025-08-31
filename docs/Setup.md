@@ -19,3 +19,11 @@ python manage.py inspectdb list_word
 
 
 ```
+
+### NLTK
+
+```python
+# run: pip install nltk
+import nltk
+nltk.download('wordnet')
+```
