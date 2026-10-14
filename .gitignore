@@ -28,3 +28,6 @@ experiments/
 # Data - keep raw data tracked, but ignore processed if large
 data/processed/
 data/vocab/
+# Node / Electron
+node_modules/
+out/
