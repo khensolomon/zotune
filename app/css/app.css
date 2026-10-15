@@ -234,7 +234,7 @@ img { display: block; }
   gap: 32px;
 }
 .searchbar .logo { flex: none; }
-.searchbar .logo img { height: 33px; width: auto; }
+.searchbar .logo img { height: 30px; width: auto; }
 .searchbar .search { flex: 0 1 560px; min-width: 0; }
 
 /* ---------- Search field ---------- */
@@ -349,8 +349,8 @@ img { display: block; }
   padding: 120px 24px 80px;
   gap: 36px;
 }
-.home-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0; }
-.home-brand img { height: 73px; width: auto; }
+.home-brand { display: flex; flex-direction: column; align-items: center; gap: 16px; margin: 0; }
+.home-brand img { height: 64px; width: auto; max-width: 100%; }
 .tagline { margin: 0; font-size: 16px; color: var(--muted); text-align: center; }
 .home-search { width: 100%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
 .try { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; font-size: 14px; color: var(--muted); }
@@ -545,9 +545,9 @@ a.card:hover { box-shadow: inset 0 0 0 1px var(--line-2), var(--shadow-field); }
   .nav a { padding: 0 10px; }
   .nav a:not([aria-current='page']) .label { display: none; }
   .searchbar-row { gap: 14px; padding: 8px var(--gutter); }
-  .searchbar .logo img { height: 24px; }
+  .searchbar .logo img { height: 20px; }
   .home { padding-top: 72px; gap: 28px; }
-  .home-brand img { height: 52px; }
+  .home-brand img { height: auto; width: min(100%, 330px); }
   .page { padding-top: 28px; }
   .headword { font-size: 44px; letter-spacing: -1px; }
   .definition { gap: 36px; }

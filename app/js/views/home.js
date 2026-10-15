@@ -20,7 +20,7 @@ export default {
           'div',
           { class: 'home-brand' },
           h('h1', { class: 'visually-hidden' }, 'zotune'),
-          h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 270, height: 73 }),
+          h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 495, height: 64 }),
           h('p', { class: 'tagline' }, 'Zo kammal — every Zolai word, in English')
         ),
         h(

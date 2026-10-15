@@ -37,7 +37,7 @@ function showBar(value, { hint = false, cycle = false } = {}) {
     h(
       'div',
       { class: 'searchbar-row' },
-      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 122, height: 33 })),
+      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 232, height: 30 })),
       barField.el
     )
   );
