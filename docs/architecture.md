@@ -245,9 +245,12 @@ There is no separate release file and no export step.
 - The app never reads the tables on `master`. `app/data/source.json` names a
   version: a commit id or a tag of the data repository. Changing that file is how
   a new version of the dictionary reaches readers.
-- Files are fetched from `base` in `source.json` (jsDelivr's GitHub mirror, whose
-  URL contains the version and is therefore immutable). The Cloudflare back end
-  can take over the same role later without changing the reader.
+- Files are fetched from `base` in `source.json`: GitHub's raw file host at that
+  commit (`raw.githubusercontent.com/laisiangtho/bible/{ref}/cite/`), whose URL
+  contains the version and is therefore immutable. jsDelivr's GitHub mirror was
+  tried first and refused the larger tables (from `sense.tsv`, 2.8 MB, upwards).
+  The Cloudflare back end can take over the same role later (R2 behind
+  `zotune.com`) without changing the reader.
 - `configuration.json` of that version acts as the manifest. Its `version` must
   equal `format` in `source.json`; any other value stops the app with a message
   naming both numbers. A table whose header differs from the columns listed in the

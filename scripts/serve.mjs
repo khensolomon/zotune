@@ -85,6 +85,21 @@ createServer(async (req, res) => {
     }
     return;
   }
+  if (CITE && url.pathname === '/cite/') {
+    // Not a page: the app fetches table files from here. A plain list helps
+    // checking that the folder is the right one.
+    const names = [];
+    const walk = async (dir, prefix) => {
+      for (const e of await readdir(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) await walk(join(dir, e.name), `${prefix}${e.name}/`);
+        else if (e.name.endsWith('.tsv') || e.name === 'configuration.json') names.push(prefix + e.name);
+      }
+    };
+    await walk(CITE, '');
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(`Dictionary tables served from ${CITE}\n\n${names.sort().map((n) => `/cite/${n}`).join('\n')}\n`);
+    return;
+  }
   if (CITE && url.pathname.startsWith('/cite/')) {
     const f = await fileFor(url.pathname.slice('/cite'.length), CITE);
     if (!f) {

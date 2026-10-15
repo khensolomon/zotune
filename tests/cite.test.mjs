@@ -42,10 +42,12 @@ test('entry assembles meanings, relations, sources and examples', () => {
   assert.equal(one.statusName, 'draft');
   assert.deepEqual(one.bible, [`${books['65']} 1:2`]);
   assert.deepEqual(one.relations.map((r) => [r.label, r.targets.map((t) => t.word)]), [
-    ['Also written', ['it na']],
     ['Built from', ['it']],
     ['Opposite', ['huatna']]
   ]);
+  assert.deepEqual(e.alsoWritten, ['it na'], 'variants are shown once for the word');
+  assert.equal(e.construction.kind, 'base');
+  assert.deepEqual(e.construction.parts.map((p) => [p.text, p.role]), [['it', 'word'], ['na', 'suffix']]);
   assert.equal(one.examples.length, 1);
   assert.deepEqual(one.examples[0].parts, [
     { text: 'Pasian ', mark: false },
@@ -67,6 +69,16 @@ test('retired rows are left out and variants lead to the main word', () => {
   const see = cite.entry(model, 'w8', { books });
   assert.equal(see.word, 'Be-ersheba');
   assert.equal(see.senses[0].origin, 'Hebrew, beer sheba');
+});
+
+test('words not in the lexicon are read as parts', () => {
+  const model = load(FIXTURE, ['core']);
+  const readings = cite.analyse(model, 'itnana');
+  assert.ok(readings.length > 0);
+  assert.deepEqual(readings[0].map((p) => [p.text, p.role]), [['itna', 'word'], ['na', 'suffix']]);
+  assert.deepEqual(cite.analyse(model, 'xy'), []);
+  const page = cite.examplesFor(model, 's2', books, 10, 0);
+  assert.equal(page, null, 'no examples before that tier is loaded');
 });
 
 test('search documents cover headwords, variants, redirects, terms and links', () => {
@@ -94,5 +106,5 @@ test('the real tables load', { skip: REAL && existsSync(REAL) ? false : 'set ZOT
   assert.equal(itna.word, 'itna');
   assert.ok(itna.senses[0].terms.includes('love'));
   assert.equal(cite.entry(model, resolve(index, 'Pasian'), { books }).word, 'Pasian');
-  console.log(`  real tables: ${model.sensesByWord.size} words, ${model.senses.size} senses, ${index.keys.length} search keys, ${ms} ms`);
+  console.log(`  real tables: ${model.sensesByWord.size} words, ${model.senses.size} senses, ${index.key.length} search keys, ${ms} ms`);
 });

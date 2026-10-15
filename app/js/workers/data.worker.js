@@ -5,6 +5,7 @@
 import * as store from '../store.js';
 import * as cite from '../cite.js';
 import { buildIndex, search, resolve, neighbours } from '../search-index.js';
+import { matchKey } from '../text.js';
 
 const SOURCE_URL = new URL('../../data/source.json', import.meta.url);
 const BOOKS_URL = new URL('../../data/books.json', import.meta.url);
@@ -169,6 +170,16 @@ const handlers = {
     return id ? cite.entry(model, id, { books }) : null;
   },
   entry: ({ id }) => cite.entry(model, id, { books }),
+  examples: ({ sense, offset = 0, limit = 10 }) => cite.examplesFor(model, sense, books, limit, offset),
+  analyse: ({ query }) => cite.analyse(model, query),
+  /** Zolai words that have the query as an English term, best first. */
+  english({ query, limit = 30 }) {
+    const key = matchKey(englishFallback(query) ?? query);
+    return search(index, query, 200)
+      .concat(englishFallback(query) ? search(index, englishFallback(query), 200) : [])
+      .filter((h) => h.side === 'english' && matchKey(h.matched) === key)
+      .slice(0, limit);
+  },
   neighbours: ({ id }) => neighbours(index, id),
   info: () => ({ ref: active.ref, format: active.format, base: baseUrl(active), tiers: active.tiers, stats: cite.stats(model) }),
   async downloadExamples() {

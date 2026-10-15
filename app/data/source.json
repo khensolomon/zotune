@@ -1,5 +1,5 @@
 {
   "format": 4,
   "ref": "36490ec6c0b8fa4c02321698a2c7ddeb304f3e84",
-  "base": "https://cdn.jsdelivr.net/gh/laisiangtho/bible@{ref}/cite/"
+  "base": "https://raw.githubusercontent.com/laisiangtho/bible/{ref}/cite/"
 }

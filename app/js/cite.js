@@ -4,7 +4,7 @@
 
 /** Table files per tier, as paths relative to the cite folder. */
 export const TIERS = {
-  core: ['configuration.json', 'word.tsv', 'sense.tsv', 'relation.tsv', 'lang/eng/gloss.tsv', 'lang/eng/link.tsv', 'lang/eng/form.tsv'],
+  core: ['configuration.json', 'word.tsv', 'sense.tsv', 'relation.tsv', 'lang/eng/gloss.tsv', 'lang/eng/link.tsv', 'lang/eng/form.tsv', 'pattern.tsv'],
   examples: ['usage.tsv', 'example.tsv', 'lang/eng/translation.tsv']
 };
 
@@ -16,6 +16,7 @@ const TABLE_KEY = {
   'lang/eng/gloss.tsv': 'gloss',
   'lang/eng/link.tsv': 'link',
   'lang/eng/form.tsv': 'form',
+  'pattern.tsv': 'pattern',
   'usage.tsv': 'usage',
   'example.tsv': 'example',
   'lang/eng/translation.tsv': 'translation'
@@ -124,7 +125,24 @@ export function buildModel(config, t) {
   for (const [term, senseIds, , status] of t['lang/eng/link.tsv']) if (status !== '0') links.set(term, senseIds);
   const forms = new Map(t['lang/eng/form.tsv'].map(([form, word]) => [form, word]));
 
-  return { config, words, senses, sensesByWord, gloss, relations, variantOf, links, forms, examples: null };
+  // Relations seen from the target: which senses name this word.
+  const reverse = new Map();
+  for (const [from, arr] of relations) {
+    if (!senses.has(from)) continue;
+    for (const r of arr) {
+      if (r[R.kind] !== 'b' && r[R.kind] !== 'j') continue;
+      const to = r[R.to][0] === 's' ? senses.get(r[R.to])?.[S.word] : r[R.to];
+      if (!to) continue;
+      const list = reverse.get(to);
+      const item = [r[R.kind], from];
+      if (list) list.push(item);
+      else reverse.set(to, [item]);
+    }
+  }
+
+  const patterns = t['pattern.tsv'].map(([kind, form, result, context, note]) => ({ kind, form, result, context: list(context), note }));
+
+  return { config, words, senses, sensesByWord, gloss, relations, reverse, variantOf, links, forms, patterns, lexicon: null, examples: null };
 }
 
 /** Adds the examples tier to a model. */
@@ -236,10 +254,11 @@ function markExample(text, marks) {
   return parts;
 }
 
-function examplesFor(model, senseId, books, limit) {
+/** Examples of one sense, a page at a time; null when the examples tier is not loaded. */
+export function examplesFor(model, senseId, books, limit, offset = 0) {
   if (!model.examples) return null;
   const uses = model.examples.bySense.get(senseId) ?? [];
-  return uses.slice(0, limit).map(([id, , start, length]) => {
+  return uses.slice(offset, offset + limit).map(([id, , start, length]) => {
     const ex = model.examples.text.get(id);
     const src = ex?.[1] ? formatSources(model, [ex[1]], books) : { bible: [], named: [] };
     return {
@@ -251,8 +270,215 @@ function examplesFor(model, senseId, books, limit) {
   });
 }
 
+const typeOf = (model, wordId) => model.sensesByWord.get(wordId)?.[0]?.[S.type] ?? null;
+const lower = (v) => v.toLowerCase();
+
+/**
+ * One part of a built word. Without a named sense, the affix sense of the word
+ * is preferred where the position calls for one (prefix first, suffix last).
+ */
+function partFor(model, text, wordId, sense = null, prefer = null) {
+  const all = model.sensesByWord.get(wordId) ?? [];
+  const s = sense ? model.senses.get(sense) : (prefer && all.find((x) => x[S.type] === prefer)) || all[0];
+  const type = s?.[S.type];
+  return {
+    text,
+    word: wordId ? model.words.get(wordId)?.[W.spelling] ?? text : null,
+    number: sense && s?.[S.number] ? Number(s[S.number]) : null,
+    role: type === 'prefix' ? 'prefix' : type === 'suffix' ? 'suffix' : 'word',
+    gloss: s ? shortGloss(model, s) : ''
+  };
+}
+
+/** Lowercase spelling → word ids with a meaning, built on first use. */
+function lexicon(model) {
+  if (!model.lexicon) {
+    const byKey = new Map();
+    for (const wordId of model.sensesByWord.keys()) {
+      const k = lower(model.words.get(wordId)[W.spelling]).replace(/[ '-]/g, '');
+      if (!byKey.has(k)) byKey.set(k, []);
+      byKey.get(k).push(wordId);
+    }
+    model.lexicon = byKey;
+  }
+  return model.lexicon;
+}
+
+function patternNotes(model, spelling, type) {
+  const w = lower(spelling);
+  const notes = [];
+  const letters = model.patterns.filter((p) => p.kind === 'letter' && w.includes(p.form));
+  if (letters.length) {
+    const names = letters.map((p) => p.form).join(', ');
+    notes.push(`Written with ${letters.length > 1 ? 'the letters' : 'the letter'} ${names}, which native Zolai words do not use: a loanword, a name or a foreign spelling.`);
+  }
+  for (const p of model.patterns) {
+    if (p.kind === 'stem' && p.context.some((c) => w.includes(p.result + c))) notes.push(p.note);
+  }
+  return notes;
+}
+
+/** How a word is built, from its relations, doubling and spelling patterns. */
+function construction(model, word) {
+  const spelling = word[W.spelling];
+  const senses = model.sensesByWord.get(word[W.id]) ?? [];
+  const type = senses[0]?.[S.type];
+  let parts = null;
+  let kind = null;
+  for (const s of senses) {
+    const rels = model.relations.get(s[S.id]) ?? [];
+    const joins = rels.filter((r) => r[R.kind] === 'j');
+    if (joins.length > 1) {
+      parts = joins.map((r, i) => {
+        const t = r[R.to];
+        const wid = t[0] === 's' ? model.senses.get(t)?.[S.word] : t;
+        const prefer = i === 0 ? 'prefix' : i === joins.length - 1 ? 'suffix' : null;
+        return partFor(model, model.words.get(wid)?.[W.spelling] ?? t, wid, t[0] === 's' ? t : null, prefer);
+      });
+      kind = 'joins';
+      break;
+    }
+    const base = rels.find((r) => r[R.kind] === 'b');
+    if (base && !parts) {
+      const t = base[R.to];
+      const wid = t[0] === 's' ? model.senses.get(t)?.[S.word] : t;
+      const baseSpelling = model.words.get(wid)?.[W.spelling];
+      if (!baseSpelling) continue;
+      parts = [partFor(model, baseSpelling, wid, t[0] === 's' ? t : null)];
+      const w = lower(spelling);
+      const b = lower(baseSpelling);
+      const lex = lexicon(model);
+      const affix = (text, prefer) => {
+        const key = text.replace(/^-|-$/g, '');
+        const id = (lex.get(key) ?? [])[0];
+        return id ? partFor(model, key, id, null, prefer) : key ? { text: key, word: null, number: null, role: 'word', gloss: '' } : null;
+      };
+      if (w.startsWith(b) && w.length > b.length) parts.push(affix(w.slice(b.length), 'suffix'));
+      else if (w.endsWith(b) && w.length > b.length) parts.unshift(affix(w.slice(0, w.length - b.length), 'prefix'));
+      parts = parts.filter(Boolean);
+      kind = 'base';
+    }
+  }
+  const w = lower(spelling);
+  if (!parts && w.length % 2 === 0 && w.length >= 4) {
+    const half = w.slice(0, w.length / 2);
+    const id = (lexicon(model).get(half) ?? [])[0];
+    if (half === w.slice(w.length / 2) && id) {
+      parts = [partFor(model, half, id), partFor(model, half, id)];
+      kind = 'double';
+    }
+  }
+  if (!parts) {
+    // No relation says how the word is built: offer the reading of the parts,
+    // marked as an automatic analysis.
+    const reading = analyse(model, spelling, 1)[0];
+    if (reading && reading.length > 1) {
+      parts = reading;
+      kind = 'analysis';
+    }
+  }
+  const notes = patternNotes(model, spelling, type);
+  if (kind === 'double') {
+    const p = model.patterns.find((x) => x.kind === 'double' && x.form === typeOf(model, (lexicon(model).get(parts[0].text) ?? [])[0]));
+    if (p) notes.unshift(p.note);
+  }
+  if (!parts && !notes.length) return null;
+  return { kind, parts, notes };
+}
+
+/** Words built on a word and words that contain it; respellings separately. */
+function family(model, wordId, max = 40) {
+  const builtOn = new Map();
+  const usedIn = new Map();
+  const respelled = new Set();
+  for (const [kind, from] of model.reverse.get(wordId) ?? []) {
+    const s = model.senses.get(from);
+    const w = s && model.words.get(s[S.word]);
+    if (!w || w[W.id] === wordId) continue;
+    const joins = (model.relations.get(from) ?? []).filter((r) => r[R.kind] === 'j').length;
+    if (kind === 'j' && joins === 1) {
+      respelled.add(w[W.spelling]);
+      continue;
+    }
+    const target = kind === 'b' ? builtOn : usedIn;
+    if (!target.has(w[W.id])) target.set(w[W.id], { word: w[W.spelling], gloss: shortGloss(model, model.sensesByWord.get(w[W.id])[0]) });
+  }
+  const sorted = (m) => [...m.values()].sort((a, b) => a.word.localeCompare(b.word));
+  const cut = (arr) => ({ items: arr.slice(0, max), total: arr.length });
+  return { builtOn: cut(sorted(builtOn)), usedIn: cut(sorted(usedIn)), respelled: [...respelled] };
+}
+
+/**
+ * Readings of a word that is not in the lexicon, as parts that are: a prefix at
+ * the start, suffixes at the end, words between them, a stem restored by a stem
+ * pattern, or a word written twice. Up to three readings, fewest parts first.
+ */
+export function analyse(model, text, max = 3) {
+  const w = lower(text).replace(/[ '-]/g, '');
+  if (w.length < 3) return [];
+  const lex = lexicon(model);
+  const roleOf = (key) => {
+    const roles = new Set((lex.get(key) ?? []).flatMap((id) => (model.sensesByWord.get(id) ?? []).map((s) => s[S.type])));
+    return roles;
+  };
+  const stems = model.patterns.filter((p) => p.kind === 'stem');
+  const found = [];
+  const walk = (pos, parts) => {
+    if (parts.length > 4 || found.length > 200) return;
+    if (pos === w.length) {
+      if (parts.length > 1) found.push(parts);
+      return;
+    }
+    for (let end = w.length; end > pos; end--) {
+      const piece = w.slice(pos, end);
+      const types = roleOf(piece);
+      const isLast = end === w.length;
+      const ok =
+        (types.has('prefix') && pos === 0 && !isLast) ||
+        (types.has('suffix') && pos > 0) ||
+        ([...types].some((t) => t !== 'prefix' && t !== 'suffix') && piece.length >= 2);
+      if (ok) {
+        const prefer = types.has('prefix') && pos === 0 && !isLast ? 'prefix' : types.has('suffix') && isLast && pos > 0 ? 'suffix' : null;
+        walk(end, [...parts, partFor(model, piece, lex.get(piece)[0], null, prefer)]);
+      }
+      for (const st of stems) {
+        if (!piece.endsWith(st.result)) continue;
+        const restored = piece.slice(0, piece.length - st.result.length) + st.form;
+        const next = st.context.find((c) => w.startsWith(c, end));
+        if (next && lex.has(restored) && restored !== piece) {
+          walk(end, [...parts, { ...partFor(model, piece, lex.get(restored)[0]), note: st.note }]);
+        }
+      }
+    }
+  };
+  walk(0, []);
+  const half = w.slice(0, w.length / 2);
+  if (w.length % 2 === 0 && half === w.slice(w.length / 2) && lex.has(half)) {
+    const p = partFor(model, half, lex.get(half)[0]);
+    found.unshift([p, { ...p }]);
+  }
+  // Parts at the end that can be suffixes read as suffixes (they stack: te, pi,
+  // na); a first part that can be a prefix reads as one.
+  const hasType = (key, type) => (lex.get(key) ?? []).some((id) => (model.sensesByWord.get(id) ?? []).some((s) => s[S.type] === type));
+  for (const r of found) {
+    for (let i = r.length - 1; i > 0 && hasType(r[i].text, 'suffix'); i--) {
+      r[i] = { ...partFor(model, r[i].text, lex.get(r[i].text)[0], null, 'suffix'), note: r[i].note };
+    }
+  }
+  const seen = new Set();
+  return found
+    .sort((a, b) => a.length - b.length || b[0].text.length - a[0].text.length)
+    .filter((r) => {
+      const k = r.map((p) => p.text).join('+');
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, max);
+}
+
 /** Screen-ready entry for one word, or null. */
-export function entry(model, wordId, { books = null, exampleLimit = 5 } = {}) {
+export function entry(model, wordId, { books = null, exampleLimit = 3 } = {}) {
   let word = model.words.get(wordId);
   if (!word) return null;
   const redirectFrom = [];
@@ -265,6 +491,7 @@ export function entry(model, wordId, { books = null, exampleLimit = 5 } = {}) {
   }
   const cfg = model.config;
   const spelling = word[W.spelling];
+  const alsoWritten = new Set(redirectFrom);
   const senses = model.sensesByWord.get(word[W.id]).map((s) => {
     const id = s[S.id];
     const g = model.gloss.get(id);
@@ -275,6 +502,11 @@ export function entry(model, wordId, { books = null, exampleLimit = 5 } = {}) {
       if (!groups.has(r[R.kind])) groups.set(r[R.kind], []);
       groups.get(r[R.kind]).push(t);
     }
+    // Other spellings are shown once for the word, not under each meaning.
+    const sameAs = groups.get('j')?.length === 1 ? groups.get('j') : [];
+    for (const t of [...(groups.get('v') ?? []), ...sameAs]) alsoWritten.add(t.word);
+    groups.delete('v');
+    if (sameAs.length) groups.delete('j');
     const relations = RELATION_ORDER.filter((k) => groups.has(k)).map((kind) => ({
       kind,
       label: kind === 'j' && groups.get(kind).length === 1 ? 'Same as' : RELATION_LABEL[kind],
@@ -307,7 +539,22 @@ export function entry(model, wordId, { books = null, exampleLimit = 5 } = {}) {
   });
   const partOf = (model.relations.get(word[W.id]) ?? []).filter((r) => r[R.kind] === 'see').map((r) => target(model, r[R.to])).filter(Boolean);
   const english = [...new Set(senses.flatMap((s) => s.terms))];
-  return { id: word[W.id], word: spelling, status: word[W.status], redirectFrom, partOf, english, senses };
+  const fam = family(model, word[W.id]);
+  for (const w of fam.respelled) alsoWritten.add(w);
+  alsoWritten.delete(spelling);
+  return {
+    id: word[W.id],
+    word: spelling,
+    status: word[W.status],
+    redirectFrom,
+    alsoWritten: [...alsoWritten],
+    partOf,
+    english,
+    construction: construction(model, word),
+    builtOn: fam.builtOn,
+    usedIn: fam.usedIn,
+    senses
+  };
 }
 
 /** Counts for the workspace. */

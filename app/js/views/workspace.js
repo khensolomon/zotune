@@ -47,7 +47,7 @@ export default {
               stat(hasExamples ? info.stats.examples.toLocaleString() : '—', 'example sentences')
             ),
             h('div', { class: 'stats' }, info.stats.byStatus.map((s) => stat(s.count.toLocaleString(), capital(s.name)))),
-            h('p', { class: 'related' }, `Tables format ${info.format}, version ${info.ref.slice(0, 12)}, from ${info.base}`),
+            h('p', { class: 'meta-line' }, `Tables format ${info.format}, version ${info.ref.slice(0, 12)}, from ${info.base}`),
             hasExamples ? null : h('div', { class: 'row' }, getExamples),
             note,
             h('h2', null, 'Your suggestions'),

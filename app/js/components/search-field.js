@@ -51,6 +51,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
 
   function close() {
     list.hidden = true;
+    form.classList.remove('is-open');
     input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant');
     active = -1;
@@ -91,6 +92,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     );
     const open = items.length > 0 && document.activeElement === input;
     list.hidden = !open;
+    form.classList.toggle('is-open', open);
     input.setAttribute('aria-expanded', String(open));
     highlight(-1);
   }
