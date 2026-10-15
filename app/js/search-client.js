@@ -46,12 +46,14 @@ export const data = {
   english: (query, limit) => request('english', { query, limit }),
   englishHelp: (query) => request('englishHelp', { query }),
   similar: (query, limit) => request('similar', { query, limit }),
+  starters: () => request('starters', { day: Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000) }),
   breakdown: (words) => request('breakdown', { words }),
   numberHelp: (value) => request('numberHelp', { value }),
   phraseExamples: (text) => request('phraseExamples', { text }),
   neighbours: (id) => request('neighbours', { id }),
   info: () => request('info'),
-  downloadExamples: () => request('downloadExamples')
+  downloadExamples: () => request('downloadExamples'),
+  downloadEnglish: () => request('downloadEnglish')
 };
 
 /** Subscribes to dataset status; the current status is delivered at once. */

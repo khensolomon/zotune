@@ -16,6 +16,16 @@ const STARTERS = [
 
 let uid = 0;
 
+// Starters from the data replace the fixed ones once the dictionary is ready.
+let starters = STARTERS;
+data
+  .starters()
+  .then((st) => {
+    const list = [st.today, ...st.more, st.english].filter(Boolean).map((w) => ({ word: w.word, gloss: w.gloss }));
+    if (list.length) starters = list;
+  })
+  .catch(() => {});
+
 /** Removes the dimming, as when the page changes. */
 export function clearDim() {
   if (dimOwner) setDim(dimOwner, false);
@@ -148,10 +158,10 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
   function showStart() {
     const recent = recentWords().slice(0, 5);
     const seen = new Set(recent.map((r) => r.word));
-    const starters = STARTERS.filter((r) => !seen.has(r.word));
+    const tries = starters.filter((r) => !seen.has(r.word)).slice(0, 4);
     show([
       ...recent.map((r, i) => ({ ...r, group: i === 0 ? 'Recent' : null })),
-      ...starters.map((r, i) => ({ ...r, group: i === 0 ? (recent.length ? 'Try' : 'Try one of these') : null }))
+      ...tries.map((r, i) => ({ ...r, group: i === 0 ? (recent.length ? 'Try' : 'Try one of these') : null }))
     ]);
   }
 

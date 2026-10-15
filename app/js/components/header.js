@@ -32,16 +32,49 @@ function windowControls(bridge) {
   );
 }
 
+const RING_R = 16;
+const RING_LEN = 2 * Math.PI * RING_R;
+
+/** A thin ring around the status icon: the share downloaded, or a turning arc. */
+function progressRing() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'ring');
+  svg.setAttribute('viewBox', '0 0 36 36');
+  svg.setAttribute('aria-hidden', 'true');
+  const track = document.createElementNS(NS, 'circle');
+  const arc = document.createElementNS(NS, 'circle');
+  for (const c of [track, arc]) {
+    c.setAttribute('cx', '18');
+    c.setAttribute('cy', '18');
+    c.setAttribute('r', String(RING_R));
+  }
+  track.setAttribute('class', 'ring-track');
+  arc.setAttribute('class', 'ring-arc');
+  arc.setAttribute('stroke-dasharray', String(RING_LEN));
+  svg.append(track, arc);
+  return {
+    svg,
+    show(state, done, total) {
+      svg.dataset.mode = state === 'loading' ? (total ? 'part' : 'spin') : 'off';
+      const share = total ? Math.min(1, (done + 0.5) / total) : 0.25;
+      arc.setAttribute('stroke-dashoffset', String(RING_LEN * (1 - share)));
+    }
+  };
+}
+
 export function createHeader(root) {
+  const progress = progressRing();
+  const ring = progress.svg;
   const links = MENU.map((m) =>
     h('a', { href: m.href, dataset: { key: m.key } }, icon(m.icon), h('span', { class: 'label' }, m.label))
   );
   const pill = h('span', { class: 'nav-pill', 'aria-hidden': 'true' });
   const nav = h('nav', { class: 'nav', 'aria-label': 'Main' }, pill, links);
 
-  const status = h('a', { class: 'tool', href: '/workspace', dataset: { state: 'loading' } }, icon(ICONS.cloud), h('span', { class: 'dot' }));
+  const status = h('a', { class: 'tool', href: '/settings#data', dataset: { state: 'loading' } }, ring, icon(ICONS.cloud), h('span', { class: 'dot' }));
   const badge = h('span', { class: 'badge', hidden: true });
-  const user = h('a', { class: 'tool user', href: '/me', 'aria-label': 'You (guest)', title: 'You (guest)' }, icon(ICONS.user), badge);
+  const user = h('a', { class: 'tool user', href: '/settings', 'aria-label': 'Settings (guest)', title: 'Settings' }, icon(ICONS.user), badge);
 
   const bridge = window.zotune;
   const tools = h('div', { class: 'tools' }, status, user, bridge && bridge.platform !== 'darwin' ? windowControls(bridge) : null);
@@ -49,6 +82,7 @@ export function createHeader(root) {
 
   onStatus((s) => {
     status.dataset.state = s.state;
+    progress.show(s.state, s.done ?? 0, s.total ?? 0);
     let text = STATUS_TEXT[s.state];
     if (s.state === 'error') text = `${STATUS_TEXT.error} ${s.message ?? ''}`.trim();
     if (s.state === 'loading' && s.step) text = s.total ? `${s.step} (${s.done + 1} of ${s.total})…` : `${s.step}…`;

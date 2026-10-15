@@ -654,6 +654,68 @@ export function examplesContaining(model, text, books, max = 5) {
   return out;
 }
 
+/**
+ * Words to start from, chosen from the data and different each day: a word
+ * of the day, more reviewed words, an English term, a word written two ways,
+ * a phrase, and a draft meaning that needs checking.
+ */
+export function starters(model, day) {
+  if (!model.pools) {
+    const reviewed = [];
+    const phrases = [];
+    const drafts = [];
+    const twoWays = [];
+    for (const [wordId, senses] of model.sensesByWord) {
+      const w = model.words.get(wordId)[W.spelling];
+      const first = senses[0];
+      if (first[S.type] === 'name' || first[S.type] === 'num' || !model.gloss.get(first[S.id])?.[G.terms]) continue;
+      const best = Math.max(...senses.map((x) => Number(x[S.status])));
+      // Native-looking words only: no loanwords (origin given) and none of the
+      // letters native Zolai words do not use.
+      const simple = /^[a-z]+$/.test(w) && w.length >= 3 && w.length <= 10 && !first[S.origin] && !/[jqrxy]/.test(w);
+      if (best >= 3 && simple) reviewed.push(wordId);
+      if (best >= 3 && / /.test(w) && w.split(' ').length <= 3 && first[S.type] !== 'phrase') phrases.push(wordId);
+      if (best <= 2 && simple) drafts.push(wordId);
+      if (best >= 2 && / /.test(w) && w.split(' ').length === 2) {
+        const joined = w.replace(' ', '');
+        if (lexicon(model).has(joined)) twoWays.push(wordId);
+      }
+    }
+    model.pools = { reviewed, phrases, drafts, twoWays };
+  }
+  const { reviewed, phrases, drafts, twoWays } = model.pools;
+  // A small hash spreads consecutive days across the lists.
+  const pick = (list, salt) => (list.length ? list[Math.abs(Math.imul(day + salt * 7919, 2654435761)) % list.length] : null);
+  const card = (id) => {
+    if (!id) return null;
+    const first = model.sensesByWord.get(id)[0];
+    return {
+      word: model.words.get(id)[W.spelling],
+      gloss: shortGloss(model, first),
+      typeName: model.config.type?.[first[S.type]]?.name ?? first[S.type],
+      definition: model.gloss.get(first[S.id])?.[G.definition] ?? '',
+      example: model.examples ? examplesFor(model, first[S.id], null, 1)[0] ?? null : null
+    };
+  };
+  const today = card(pick(reviewed, 1));
+  const more = [pick(reviewed, 2), pick(reviewed, 3)].map(card).filter((c) => c && c.word !== today?.word);
+  let englishFrom = null;
+  let english = null;
+  for (let salt = 4; salt < 40 && !english; salt += 5) {
+    englishFrom = card(pick(reviewed, salt));
+    english = englishFrom?.gloss.split(', ').find((t) => /^[a-z]{4,}$/.test(t)) ?? null;
+  }
+  const split = card(pick(twoWays, 5));
+  return {
+    today,
+    more,
+    english: english ? { word: english, gloss: `finds ${englishFrom.word} and other Zolai words` } : null,
+    twoWays: split ? { word: split.word, joined: split.word.replace(' ', ''), gloss: split.gloss } : null,
+    phrase: card(pick(phrases, 6)),
+    check: card(pick(drafts, 7))
+  };
+}
+
 /** Screen-ready entry for one word, or null. */
 export function entry(model, wordId, { books = null, exampleLimit = 3 } = {}) {
   let word = model.words.get(wordId);

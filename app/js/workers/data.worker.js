@@ -225,6 +225,7 @@ const handlers = {
     return null;
   },
   similar: ({ query, limit = 6 }) => cite.similarWords(model, query, limit),
+  starters: ({ day }) => cite.starters(model, day),
   /** Each word of a phrase with its meaning: Zolai, English, or nearest. */
   breakdown({ words }) {
     return words.slice(0, 40).map((token) => {
@@ -279,6 +280,10 @@ const handlers = {
   },
   neighbours: ({ id }) => neighbours(index, id),
   info: () => ({ ref: active.ref, format: active.format, base: baseUrl(active), tiers: active.tiers, stats: cite.stats(model) }),
+  async downloadEnglish() {
+    if (!(await ensureEnglish())) throw new Error('The English lexicon could not be downloaded. Check the connection and try again.');
+    return cite.stats(model);
+  },
   async downloadExamples() {
     if (!model.examples) {
       const ex = await ensureTier(active, 'examples', 'example sentences');

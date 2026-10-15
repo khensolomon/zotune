@@ -8,8 +8,7 @@ import { searchField, clearDim } from './components/search-field.js';
 import home from './views/home.js';
 import definition from './views/definition.js';
 import about from './views/about.js';
-import me from './views/me.js';
-import workspace from './views/workspace.js';
+import settings from './views/settings.js';
 import editor from './views/editor.js';
 import notFound from './views/not-found.js';
 
@@ -25,8 +24,11 @@ route('/', home);
 route('/definition', definition);
 route('/definition/:word', definition);
 route('/about', about);
-route('/me', me);
-route('/workspace', workspace);
+route('/settings', settings);
+// Earlier addresses of the parts that Settings now holds.
+const moved = (to) => ({ nav: null, layout: 'page', title: 'Settings', render: () => navigate(to, { replace: true }) });
+route('/me', moved('/settings#words'));
+route('/workspace', moved('/settings#data'));
 route('/workspace/entry/:id', editor);
 
 // Pinned logo + search bar for definition pages.

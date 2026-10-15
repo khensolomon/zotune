@@ -58,8 +58,7 @@ Routes are real paths handled by the History API:
 | `/definition` | Definition page with no query (how-to help) |
 | `/definition/{word}` | Definition of a word (`{word}` is URL-encoded) |
 | `/about` | About |
-| `/me` | Bookmarks, likes and pending changes on this device |
-| `/workspace` | Dataset management |
+| `/settings` | Appearance, bookmarks and likes, the dictionary on this device, suggestions and pending changes (`/me` and `/workspace` lead here) |
 | `/workspace/entry/{id}` | Proposal editor for one entry |
 
 - Web: the host serves `index.html` for any path without a file extension
@@ -108,6 +107,26 @@ IndexedDB database.
   Matching ignores case; opening a word prefers the spelling with the same case.
 - English irregular forms (`lang/eng/form`) reduce a query such as `ran` to `run`
   when nothing matches the form itself.
+
+### Kinds of query
+
+`js/query.js` reads a query before any lookup and each kind gets its own page,
+so no search ends in a bare "not found":
+
+| Kind | Answer |
+| --- | --- |
+| Word that is a headword (or an English term, or an English form of one) | The entry |
+| Word that is not | Nearest spellings (edit distance 1–2), English forms and WordNet meanings, readings of its parts, words that start the same way, and a way to suggest it |
+| Phrase (2–4 words) or sentence | Each word with its meaning, and sentences from the examples that contain it |
+| Number | Its English number words and their Zolai |
+| Another script (Myanmar, Devanagari, …) | What the dictionary reads, and that other languages are planned |
+| Web or email address | A short explanation |
+| Symbols | Left out, and the page says so |
+
+The empty definition page is a guide: a word of the day, ways to search with
+live examples taken from the data, recent words for a returning reader, and one
+draft meaning to check. Words of the day are reviewed, native-looking words (no
+loanword origin, none of the letters j, q, r, x, y), chosen by date.
 
 ### Persistent storage
 

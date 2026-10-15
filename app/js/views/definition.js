@@ -5,13 +5,8 @@ import { markedParts, matchKey } from '../text.js';
 import { loadingNote } from '../components/loading.js';
 import { classify } from '../query.js';
 import * as actions from '../actions.js';
-import { rememberWord } from '../recent.js';
+import { rememberWord, recentWords } from '../recent.js';
 
-const EXAMPLES = [
-  { k: 'A Zolai word', w: 'itna', g: 'love, affection' },
-  { k: 'An English word', w: 'love', g: 'finds the Zolai words for it' },
-  { k: 'Written two ways', w: 'a om', g: 'joined or split, both work' }
-];
 const MAX_VERSES = 6;
 const MORE_STEP = 10;
 
@@ -44,27 +39,69 @@ function joinNodes(nodes, sep = ', ') {
 
 /* ---------- Empty query and not found ---------- */
 
-function howTo(root) {
+/* ---------- Empty query: a guide that fits the reader ---------- */
+
+function guideCard(kicker, w, gloss, extra = null) {
+  return h('a', { class: 'card', href: definitionPath(w) }, h('span', { class: 'card-k' }, kicker), h('span', { class: 'card-w', lang: 'ctd' }, w), gloss ? h('span', { class: 'card-g' }, gloss) : null, extra);
+}
+
+function todayBlock(t) {
+  if (!t) return null;
+  return h(
+    'a',
+    { class: 'today', href: definitionPath(t.word) },
+    h('span', { class: 'card-k' }, 'Word of the day'),
+    h('span', { class: 'today-w', lang: 'ctd' }, t.word),
+    h('span', { class: 'today-t' }, t.typeName),
+    h('span', { class: 'today-g' }, t.gloss),
+    t.example
+      ? h('span', { class: 'today-ex' }, h('q', { lang: 'ctd' }, t.example.parts.map((p) => (p.mark ? h('b', null, p.text) : p.text))), h('span', { class: 'today-en' }, t.example.en))
+      : null
+  );
+}
+
+async function guide(root) {
+  const recent = recentWords();
+  const firstTime = recent.length === 0;
+  const box = h('div', { class: 'guide' }, h('h1', null, firstTime ? 'Find any Zolai word, in Zolai or English' : 'Welcome back'), loadingNote());
+  mount(root, h('div', { class: 'page' }, box));
+  let st = null;
+  try {
+    st = await data.starters();
+  } catch (err) {
+    box.append(h('p', { class: 'loading-note is-error' }, err.message));
+    return;
+  }
+  const cards = [
+    st.more[0] && guideCard('Type a Zolai word', st.more[0].word, st.more[0].gloss),
+    st.english && guideCard('Or an English word', st.english.word, st.english.gloss),
+    st.twoWays && guideCard('Joined or split', st.twoWays.joined, `same as “${st.twoWays.word}”: ${st.twoWays.gloss}`),
+    st.phrase && guideCard('A phrase', st.phrase.word, st.phrase.gloss)
+  ].filter(Boolean);
+  const tips = h(
+    'ul',
+    { class: 'tips' },
+    h('li', null, 'Words written joined or split, with or without a hyphen, are found either way.'),
+    h('li', null, 'English words in any form work: loves, creatures, running.'),
+    h('li', null, 'A whole sentence is read word by word.'),
+    matchMedia('(pointer: fine)').matches ? h('li', null, 'Press / to search from anywhere; on a word, [ and ] step to the previous and next word.') : null
+  );
   mount(
-    root,
-    h(
-      'div',
-      { class: 'page' },
-      h(
-        'div',
-        { class: 'howto' },
-        h('h1', null, 'Type a word to see what it means'),
-        loadingNote(),
-        h(
-          'div',
-          { class: 'cards' },
-          EXAMPLES.map((e) =>
-            h('a', { class: 'card', href: definitionPath(e.w) }, h('span', { class: 'card-k' }, e.k), h('span', { class: 'card-w' }, e.w), h('span', { class: 'card-g' }, e.g))
-          )
-        ),
-        h('p', { class: 'tip' }, 'Zolai or English, no need to choose. Press / to jump to the search box from anywhere.')
-      )
-    )
+    box,
+    h('h1', null, firstTime ? 'Find any Zolai word, in Zolai or English' : 'Welcome back'),
+    todayBlock(st.today),
+    firstTime ? null : h('section', { class: 'panel' }, h('h2', null, 'Your recent words'), h('div', { class: 'row' }, recent.map((r) => h('a', { class: 'chip outline serif', href: definitionPath(r.word), title: r.gloss, lang: 'ctd' }, r.word)))),
+    h('section', { class: 'guide-how' }, h('h2', null, firstTime ? 'How to search' : 'Ways to search'), h('div', { class: 'cards' }, cards)),
+    st.check
+      ? h(
+          'section',
+          { class: 'panel check' },
+          h('h2', null, 'Help check the dictionary'),
+          h('p', null, 'Most meanings are drafts. If you speak Zolai, open one and answer “Is this meaning correct?”.'),
+          h('div', { class: 'row' }, h('a', { class: 'btn', href: definitionPath(st.check.word) }, 'Check ', h('b', { lang: 'ctd' }, st.check.word)))
+        )
+      : null,
+    firstTime ? tips : h('details', { class: 'tips-more' }, h('summary', null, 'Tips'), tips)
   );
 }
 
@@ -541,7 +578,7 @@ async function showEntry(root, entry, query) {
               )
             : null,
           groups.map((g) => h('section', { class: 'pos' }, h('h2', null, g.type), g.senses.map((s, i) => senseBlock(s, i + 1, votes, shownKinds)))),
-          examplesMissing ? h('p', { class: 'meta-line' }, 'Example sentences are not on this device yet. ', h('a', { href: '/workspace' }, 'Get them in Workspace')) : null,
+          examplesMissing ? h('p', { class: 'meta-line' }, 'Example sentences are not on this device yet. ', h('a', { href: '/settings#data' }, 'Get them in Settings')) : null,
           familyBlock(`Words built on ${entry.word}`, entry.builtOn),
           familyBlock(`Words and phrases with ${entry.word}`, entry.usedIn)
         ),
@@ -565,7 +602,7 @@ export default {
   title: (params) => params.word ?? 'Definition',
   async render(root, { word }) {
     if (!word) {
-      howTo(root);
+      await guide(root);
       return null;
     }
     mount(root, h('div', { class: 'page' }, loadingNote()));

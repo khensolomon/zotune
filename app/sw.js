@@ -33,8 +33,8 @@ const SHELL = [
   '/js/views/home.js',
   '/js/views/definition.js',
   '/js/views/about.js',
-  '/js/views/me.js',
-  '/js/views/workspace.js',
+  '/js/views/settings.js',
+  '/js/query.js',
   '/js/views/editor.js',
   '/js/views/not-found.js'
 ];
