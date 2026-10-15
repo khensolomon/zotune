@@ -10,6 +10,30 @@ const CYCLE = ['Try “itna”…', 'Try “love”…', 'Try “lungdamna”…
 
 let uid = 0;
 
+/** Removes the dimming, as when the page changes. */
+export function clearDim() {
+  if (dimOwner) setDim(dimOwner, false);
+}
+
+// One dimming layer for the page, shared by every search field.
+let dimLayer = null;
+let dimOwner = null;
+function setDim(owner, on) {
+  if (!dimLayer) {
+    dimLayer = document.createElement('div');
+    dimLayer.className = 'dim';
+    dimLayer.setAttribute('aria-hidden', 'true');
+    dimLayer.addEventListener('mousedown', (e) => e.preventDefault());
+    dimLayer.addEventListener('click', () => dimOwner?.dismiss());
+    document.body.append(dimLayer);
+  }
+  if (on) dimOwner = owner;
+  else if (dimOwner !== owner) return;
+  dimLayer.classList.toggle('on', on);
+  document.body.classList.toggle('is-dimmed', on);
+  owner.form.classList.toggle('is-active', on);
+}
+
 export function searchField({ size = 'md', value = '', hint = false, cycle = false } = {}) {
   const id = `q${++uid}`;
   const listId = `${id}-list`;
@@ -45,6 +69,17 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
   );
 
   let hits = [];
+  // The page dims only when the person chose the field (tap, click, typing,
+  // the / key), never when the page focuses it on its own.
+  let chosen = false;
+  const owner = {
+    form,
+    dismiss: () => {
+      close();
+      input.blur();
+    }
+  };
+  const updateDim = () => setDim(owner, document.activeElement === input && (chosen || !list.hidden));
   let active = -1;
   let ticket = 0;
   let timer = 0;
@@ -53,6 +88,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     list.hidden = true;
     form.classList.remove('is-open');
     input.setAttribute('aria-expanded', 'false');
+    updateDim();
     input.removeAttribute('aria-activedescendant');
     active = -1;
   }
@@ -95,9 +131,16 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     form.classList.toggle('is-open', open);
     input.setAttribute('aria-expanded', String(open));
     highlight(-1);
+    updateDim();
   }
 
+  input.addEventListener('pointerdown', () => {
+    chosen = true;
+    if (document.activeElement === input) updateDim();
+  });
   input.addEventListener('input', () => {
+    chosen = true;
+    updateDim();
     clearTimeout(timer);
     const q = input.value;
     if (!q.trim()) {
@@ -129,9 +172,15 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     }
   });
 
-  input.addEventListener('blur', () => setTimeout(close, 0));
+  input.addEventListener('blur', () =>
+    setTimeout(() => {
+      chosen = false;
+      close();
+    }, 0)
+  );
   input.addEventListener('focus', () => {
     if (hits.length && input.value.trim()) show(hits);
+    updateDim();
   });
 
   form.addEventListener('submit', (e) => {
@@ -144,6 +193,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     const t = setInterval(() => {
       if (!form.isConnected) {
         clearInterval(t);
+        setDim(owner, false);
         return;
       }
       if (input.value) return;
@@ -151,5 +201,14 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     }, 2200);
   }
 
-  return { el: form, input, focus: () => input.focus() };
+  return {
+    el: form,
+    input,
+    /** Focuses the field; `{ chosen: true }` when the person asked for it (dims the page). */
+    focus: ({ chosen: byPerson = false } = {}) => {
+      chosen = byPerson;
+      input.focus();
+      updateDim();
+    }
+  };
 }

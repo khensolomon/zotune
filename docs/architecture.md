@@ -267,7 +267,7 @@ Compressed sizes as measured on the tables in October 2026:
 | --- | --- | --- | --- |
 | Core | `configuration.json`, `word`, `sense`, `relation`, `lang/eng/gloss`, `lang/eng/link`, `lang/eng/form` | ≈ 3.5 MB | On first open, every device |
 | Examples | `usage`, `example`, `lang/eng/translation` | ≈ 6–7 MB | Desktop: at once. Web: on request (Workspace), later per word from the back end |
-| English lexicon | `lang/eng/concept`, `lang/eng/sense`, `lang/eng/relation`, `lang/eng/equivalent` | ≈ 4.5 MB | Not yet used by the app |
+| English lexicon | `lang/eng/concept`, `lang/eng/sense`, `lang/eng/relation`, `lang/eng/equivalent` | ≈ 4.5 MB | Desktop: at once. Web: the first time an English word is not found |
 
 - The core tier gives offline search and every meaning on any phone.
 - Example sentences on the web: until the back end exists, a reader can download
@@ -277,6 +277,17 @@ Compressed sizes as measured on the tables in October 2026:
   before.
 - What readers never see is dropped while parsing: retired words and senses, and
   editor notes (`note.tsv` is not downloaded).
+
+### English words in other forms
+
+An English query that matches no term is reduced before anything else is
+tried: irregular forms (`lang/eng/form`, `ran` → `run`), then regular endings in
+up to two steps (`lovings` → `loving` → `love`, `activities` → `activity` →
+`active`). With the English lexicon loaded, shorter words it derives from are
+added (`creatures` → `creature` → `create`). The first root with a Zolai term
+opens; the page says which root was used. When no root has a Zolai term, the
+page lists the roots with their WordNet meanings and the Zolai senses linked to
+those meanings through `lang/eng/equivalent`.
 
 ### Measured cost and follow-ups
 

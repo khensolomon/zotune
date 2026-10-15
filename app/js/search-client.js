@@ -44,6 +44,7 @@ export const data = {
   examples: (sense, offset, limit) => request('examples', { sense, offset, limit }),
   analyse: (query) => request('analyse', { query }),
   english: (query, limit) => request('english', { query, limit }),
+  englishHelp: (query) => request('englishHelp', { query }),
   neighbours: (id) => request('neighbours', { id }),
   info: () => request('info'),
   downloadExamples: () => request('downloadExamples')

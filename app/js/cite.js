@@ -5,7 +5,8 @@
 /** Table files per tier, as paths relative to the cite folder. */
 export const TIERS = {
   core: ['configuration.json', 'word.tsv', 'sense.tsv', 'relation.tsv', 'lang/eng/gloss.tsv', 'lang/eng/link.tsv', 'lang/eng/form.tsv', 'pattern.tsv'],
-  examples: ['usage.tsv', 'example.tsv', 'lang/eng/translation.tsv']
+  examples: ['usage.tsv', 'example.tsv', 'lang/eng/translation.tsv'],
+  english: ['lang/eng/sense.tsv', 'lang/eng/relation.tsv', 'lang/eng/concept.tsv', 'lang/eng/equivalent.tsv']
 };
 
 /** Configuration key of the table each file holds. */
@@ -19,7 +20,11 @@ const TABLE_KEY = {
   'pattern.tsv': 'pattern',
   'usage.tsv': 'usage',
   'example.tsv': 'example',
-  'lang/eng/translation.tsv': 'translation'
+  'lang/eng/translation.tsv': 'translation',
+  'lang/eng/sense.tsv': 'lang_sense',
+  'lang/eng/relation.tsv': 'lang_relation',
+  'lang/eng/concept.tsv': 'concept',
+  'lang/eng/equivalent.tsv': 'equivalent'
 };
 
 const RELATION_LABEL = {
@@ -152,6 +157,120 @@ export function addExamples(model, t) {
     text: new Map(t['example.tsv'].map((row) => [row[0], row])),
     translation: new Map(t['lang/eng/translation.tsv'].map(([id, value]) => [id, value]))
   };
+}
+
+/**
+ * Adds the English lexicon (Open English WordNet as imported into the tables):
+ * the words and their concepts, derivations between words, and the Zolai
+ * senses equivalent to a concept.
+ */
+export function addEnglish(model, t) {
+  const words = groupBy(t['lang/eng/sense.tsv'], 0);
+  for (const [w, rows] of words) words.set(w, rows.sort((a, b) => Number(a[2]) - Number(b[2])).map((r) => r[1]));
+  const lowerWords = new Map();
+  for (const [w, concepts] of words) {
+    const k = w.toLowerCase();
+    if (!lowerWords.has(k)) lowerWords.set(k, concepts);
+  }
+  const derive = new Map();
+  for (const [from, kind, to] of t['lang/eng/relation.tsv']) {
+    if (kind !== 'derivation' && kind !== 'pertains') continue;
+    const k = from.toLowerCase();
+    if (!derive.has(k)) derive.set(k, new Set());
+    derive.get(k).add(to.toLowerCase());
+  }
+  const concepts = new Map(t['lang/eng/concept.tsv'].map(([id, type, , definition]) => [id, [type, definition]]));
+  const equivalents = new Map();
+  for (const [sense, concept, status] of t['lang/eng/equivalent.tsv']) {
+    if (status === '0' || !model.senses.has(sense)) continue;
+    if (!equivalents.has(concept)) equivalents.set(concept, []);
+    equivalents.get(concept).push(sense);
+  }
+  model.english = { words: lowerWords, derive, concepts, equivalents };
+}
+
+/** Candidate base forms of an English word by its regular endings. */
+export function englishStems(word) {
+  const w = word.toLowerCase();
+  const out = new Set();
+  const add = (x) => {
+    if (x && x.length >= 2 && x !== w) out.add(x);
+  };
+  const rules = [
+    [/ies$/, 'y'], [/ied$/, 'y'], [/ier$/, 'y'], [/iest$/, 'y'], [/ily$/, 'y'], [/iness$/, 'y'],
+    [/ves$/, 'f'], [/ves$/, 'fe'],
+    [/(ss|x|ch|sh|z|o)es$/, '$1'],
+    [/s$/, ''], [/es$/, ''],
+    [/ing$/, ''], [/ing$/, 'e'], [/ed$/, ''], [/ed$/, 'e'],
+    [/er$/, ''], [/er$/, 'e'], [/est$/, ''], [/est$/, 'e'],
+    [/ly$/, ''], [/ness$/, ''], [/ment$/, ''], [/ful$/, ''], [/less$/, ''],
+    [/ity$/, ''], [/ity$/, 'e'], [/ation$/, 'ate'], [/ation$/, 'e'], [/ion$/, ''], [/ion$/, 'e']
+  ];
+  for (const [re, replacement] of rules) if (re.test(w)) add(w.replace(re, replacement));
+  const doubled = /([b-df-hj-np-tv-z])\1(ing|ed|er|est)$/.exec(w);
+  if (doubled) add(w.slice(0, doubled.index + 1));
+  return [...out];
+}
+
+/**
+ * Roots of an English word, nearest first: the word itself when known, its base
+ * by irregular forms and regular endings (two steps: lovings, loving, love), then
+ * shorter words it derives from in the English lexicon (activity, active, act).
+ * `hasTerm(word)` tells whether a Zolai sense has the word as a term.
+ */
+export function englishRoots(model, query, hasTerm, max = 8) {
+  const q = query.trim().toLowerCase();
+  if (!/^[a-z][a-z'-]*$/.test(q)) return [];
+  const eng = model.english;
+  const known = (w) => hasTerm(w) || Boolean(eng?.words.has(w));
+  const found = new Map();
+  const add = (w, via, from) => {
+    if (found.has(w) || w === q || !known(w)) return false;
+    found.set(w, { word: w, via, from });
+    return true;
+  };
+  if (known(q)) found.set(q, { word: q, via: 'typed', from: null });
+  let frontier = [q];
+  for (let step = 0; step < 2 && frontier.length; step++) {
+    const next = [];
+    for (const w of frontier) {
+      const irregular = model.forms.get(w);
+      if (irregular && add(irregular, 'form', w)) next.push(irregular);
+      for (const stem of englishStems(w)) {
+        if (add(stem, 'ending', w)) next.push(stem);
+        else if (step === 0 && !known(stem)) next.push(stem);
+      }
+    }
+    frontier = next;
+  }
+  if (eng) {
+    let level = [...found.keys()];
+    for (let step = 0; step < 2 && level.length; step++) {
+      const next = [];
+      for (const w of level) {
+        const shorter = [...(eng.derive.get(w) ?? [])].filter((d) => d.length < w.length && !d.includes(' ')).sort((a, b) => a.length - b.length);
+        for (const d of shorter.slice(0, 2)) if (add(d, 'related', w)) next.push(d);
+      }
+      level = next;
+    }
+  }
+  return [...found.values()].slice(0, max);
+}
+
+/** Meanings of an English word in the English lexicon, with equivalent Zolai words. */
+export function englishConcepts(model, word, max = 3) {
+  const eng = model.english;
+  if (!eng) return [];
+  const typeName = { n: 'noun', v: 'verb', a: 'adjective', s: 'adjective', r: 'adverb' };
+  return (eng.words.get(word.toLowerCase()) ?? []).slice(0, max).map((id) => {
+    const [type, definition] = eng.concepts.get(id) ?? ['', ''];
+    const zolai = (eng.equivalents.get(id) ?? []).map((sid) => {
+      const s = model.senses.get(sid);
+      const w = model.words.get(s[S.word]);
+      return { word: w[W.spelling], gloss: shortGloss(model, s) };
+    });
+    return { id, type: typeName[type] ?? type, definition, zolai };
+  });
 }
 
 const termsOf = (model, senseId) => list(model.gloss.get(senseId)?.[G.terms] ?? '');
@@ -417,10 +536,8 @@ export function analyse(model, text, max = 3) {
   const w = lower(text).replace(/[ '-]/g, '');
   if (w.length < 3) return [];
   const lex = lexicon(model);
-  const roleOf = (key) => {
-    const roles = new Set((lex.get(key) ?? []).flatMap((id) => (model.sensesByWord.get(id) ?? []).map((s) => s[S.type])));
-    return roles;
-  };
+  // Names (Astro, MERS) are not parts of other words.
+  const roleOf = (key) => new Set((lex.get(key) ?? []).flatMap((id) => (model.sensesByWord.get(id) ?? []).map((s) => s[S.type])).filter((t) => t !== 'name'));
   const stems = model.patterns.filter((p) => p.kind === 'stem');
   const found = [];
   const walk = (pos, parts) => {
@@ -439,7 +556,8 @@ export function analyse(model, text, max = 3) {
         ([...types].some((t) => t !== 'prefix' && t !== 'suffix') && piece.length >= 2);
       if (ok) {
         const prefer = types.has('prefix') && pos === 0 && !isLast ? 'prefix' : types.has('suffix') && isLast && pos > 0 ? 'suffix' : null;
-        walk(end, [...parts, partFor(model, piece, lex.get(piece)[0], null, prefer)]);
+        const id = lex.get(piece).find((w) => model.sensesByWord.get(w).some((x) => x[S.type] !== 'name')) ?? lex.get(piece)[0];
+        walk(end, [...parts, partFor(model, piece, id, null, prefer)]);
       }
       for (const st of stems) {
         if (!piece.endsWith(st.result)) continue;

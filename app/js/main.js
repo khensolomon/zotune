@@ -3,7 +3,7 @@
 import { route, start, match, navigate } from './router.js';
 import { h, mount } from './dom.js';
 import { createHeader } from './components/header.js';
-import { searchField } from './components/search-field.js';
+import { searchField, clearDim } from './components/search-field.js';
 import home from './views/home.js';
 import definition from './views/definition.js';
 import about from './views/about.js';
@@ -56,6 +56,7 @@ async function render({ path }) {
   const v = found?.view ?? notFound;
   const params = found?.params ?? {};
 
+  clearDim();
   if (typeof cleanup === 'function') cleanup();
   cleanup = null;
   homeField = null;
@@ -109,7 +110,7 @@ document.addEventListener('keydown', (e) => {
   const f = barField ?? homeField;
   if (!f) return;
   e.preventDefault();
-  f.focus();
+  f.focus({ chosen: true });
 });
 
 // Deep links from the operating system (desktop shell only).

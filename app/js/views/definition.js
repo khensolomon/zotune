@@ -83,8 +83,44 @@ function partsLine(parts, whole) {
   );
 }
 
+function rootsBlock(word, result) {
+  const useful = result.roots.filter((r) => r.zolai.length || r.concepts.length);
+  if (!useful.length) return result.available ? null : h('p', { class: 'meta-line' }, 'The English lexicon could not be downloaded; connect to look the word up in other forms.');
+  const via = { typed: 'as typed', form: 'form of', ending: 'from', related: 'related to' };
+  return h(
+    'section',
+    { class: 'roots' },
+    h('h2', null, `“${word}” in other forms`),
+    useful.map((r) =>
+      h(
+        'div',
+        { class: 'root' },
+        h('p', { class: 'root-head' }, h('b', null, r.word), r.from ? h('span', { class: 'root-via' }, `${via[r.via]} ${r.from}`) : null),
+        r.zolai.length
+          ? h('p', { class: 'root-zo' }, 'In Zolai: ', joinNodes(r.zolai.map((z) => h('a', { href: definitionPath(z.word), lang: 'ctd', title: z.gloss }, z.word))))
+          : null,
+        r.concepts.map((c) =>
+          h(
+            'p',
+            { class: 'root-def' },
+            h('span', { class: 'root-type' }, c.type),
+            ' ',
+            c.definition,
+            c.zolai.length ? [' — ', joinNodes(c.zolai.map((z) => h('a', { href: definitionPath(z.word), lang: 'ctd', title: z.gloss }, z.word)))] : null
+          )
+        ),
+        r.zolai.length || r.concepts.some((c) => c.zolai.length)
+          ? null
+          : h('p', { class: 'root-none' }, 'No Zolai word yet. ', h('a', { href: `/workspace/entry/new?word=&en=${encodeURIComponent(r.word)}` }, 'Suggest one'))
+      )
+    ),
+    h('p', { class: 'build-note' }, 'English meanings from Open English WordNet.')
+  );
+}
+
 async function notFound(root, word) {
   const [hits, readings] = await Promise.all([data.suggest(word, 6), data.analyse(word)]);
+  const help = h('div', { class: 'english-help' }, /^[a-z][a-z'-]{2,}$/i.test(word) ? h('p', { class: 'loading-note' }, 'Looking for the English word in other forms…') : null);
   mount(
     root,
     h(
@@ -94,10 +130,11 @@ async function notFound(root, word) {
         'div',
         { class: 'notice' },
         h('h1', null, `No entry for “${word}” yet`),
+        help,
         readings.length
           ? h(
               'section',
-              { class: 'build' },
+              { class: 'build zo-reading' },
               h('h2', null, readings.length > 1 ? 'It may be read as one of these' : 'It may be read as'),
               readings.map((r) => partsLine(r, word)),
               h('p', { class: 'build-note' }, 'Worked out from the parts; not checked by a speaker.')
@@ -107,11 +144,22 @@ async function notFound(root, word) {
           ? [h('p', null, 'Words that start the same way'), h('div', { class: 'row' }, hits.map((hit) => h('a', { class: 'chip serif', href: definitionPath(hit.word) }, hit.word)))]
           : readings.length
             ? null
-            : h('p', null, 'Check the spelling, or try the English word.'),
+            : h('p', { class: 'zo-reading' }, 'Check the spelling, or try the English word.'),
         h('div', null, h('a', { class: 'btn', href: `/workspace/entry/new?word=${encodeURIComponent(word)}` }, icon(ICONS.edit), 'Suggest this word'))
       )
     )
   );
+  if (help.firstChild) {
+    try {
+      const result = await data.englishHelp(word);
+      const block = rootsBlock(word, result);
+      help.replaceChildren(block ?? '');
+      // An English word read as Zolai parts is noise once its English forms are found.
+      if (block?.classList.contains('roots')) root.querySelectorAll('.zo-reading').forEach((el) => el.remove());
+    } catch (err) {
+      help.replaceChildren(h('p', { class: 'loading-note is-error' }, err.message));
+    }
+  }
 }
 
 /* ---------- Entry ---------- */
@@ -177,31 +225,40 @@ function exampleItem(ex) {
   return h(
     'li',
     { class: 'example' },
-    h('p', { class: 'example-zo', lang: 'ctd' }, ex.parts.map((p) => (p.mark ? h('b', null, p.text) : p.text))),
-    h('p', { class: 'example-en' }, ex.en, ex.ref ? h('span', { class: 'example-ref' }, ex.ref) : null)
+    h('q', { class: 'example-zo', lang: 'ctd' }, ex.parts.map((p) => (p.mark ? h('b', null, p.text) : p.text))),
+    h('p', { class: 'example-en' }, ex.en, ex.ref ? h('cite', { class: 'example-ref' }, ex.ref) : null)
   );
 }
 
 function examplesBlock(sense) {
   if (!sense.examples?.length) return null;
+  const first = sense.examples.length;
   const list = h('ul', { class: 'examples', 'aria-label': 'Examples' }, sense.examples.map(exampleItem));
-  let shown = sense.examples.length;
+  let shown = first;
   const left = () => sense.exampleCount - shown;
   const more = h('button', { type: 'button', class: 'more' });
-  const label = () => {
-    more.textContent = `Show ${Math.min(MORE_STEP, left())} more of ${plural(left(), 'example', 'examples')}`;
+  const fewer = h('button', { type: 'button', class: 'more' }, 'Show fewer');
+  const update = () => {
+    more.textContent = left() > MORE_STEP ? `Show ${MORE_STEP} more (${left().toLocaleString()} left)` : `Show ${plural(left(), 'more example', 'more examples')}`;
     more.hidden = left() <= 0;
+    fewer.hidden = shown <= first;
   };
-  label();
+  update();
   more.addEventListener('click', async () => {
     more.disabled = true;
     const next = await data.examples(sense.id, shown, MORE_STEP);
     list.append(...next.map(exampleItem));
     shown += next.length;
     more.disabled = false;
-    label();
+    update();
   });
-  return [list, more];
+  fewer.addEventListener('click', () => {
+    while (list.children.length > first) list.lastChild.remove();
+    shown = first;
+    update();
+    list.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  return [list, h('div', { class: 'more-row' }, more, fewer)];
 }
 
 function senseBlock(sense, n, votes, shown) {
@@ -296,7 +353,7 @@ async function showEntry(root, entry, query) {
   ]);
 
   const typedZolai = matchKey(query) === matchKey(entry.word) || entry.alsoWritten.some((w) => matchKey(w) === matchKey(query));
-  const english = typedZolai ? [] : await data.english(query, 30);
+  const english = typedZolai ? [] : await data.english(entry.via?.to ?? query, 30);
 
   const groups = [];
   for (const s of entry.senses) {
@@ -320,11 +377,12 @@ async function showEntry(root, entry, query) {
         h(
           'article',
           { class: 'entry' },
-          englishBlock(query, english, entry.id),
+          englishBlock(entry.via?.to ?? query, english, entry.id),
           h(
             'header',
             { class: 'entry-head' },
             entry.redirectFrom.length ? h('p', { class: 'meta-line' }, `“${entry.redirectFrom.join(', ')}” is written as`) : null,
+            entry.via ? h('p', { class: 'meta-line' }, `Nothing for “${entry.via.from}”; showing the Zolai for “${entry.via.to}”`) : null,
             h(
               'div',
               { class: 'headline' },

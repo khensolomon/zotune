@@ -33,7 +33,7 @@ export default {
       { class: 'form', novalidate: true },
       field('word', 'Zolai word', { value: word, serif: true, required: true }),
       field('pos', 'Kind of word', { value: first.typeName ?? '', help: 'For example noun, verb, adjective.' }),
-      field('gloss', 'Meaning in English', { value: (first.terms ?? []).join(', '), required: true, help: 'Short, like a dictionary: “love, affection”.' }),
+      field('gloss', 'Meaning in English', { value: isNew ? new URLSearchParams(location.search).get('en') ?? '' : (first.terms ?? []).join(', '), required: true, help: 'Short, like a dictionary: “love, affection”.' }),
       field('definition', 'Explanation', { value: first.definition ?? '', multiline: true, help: 'Optional. Write Zolai words in {braces}.' }),
       field('exampleZo', 'Example in Zolai', { value: ex ? ex.parts.map((p) => p.text).join('') : '', multiline: true, serif: true }),
       field('exampleEn', 'The example in English', { value: ex?.en ?? '', multiline: true }),

@@ -279,16 +279,20 @@ img { display: block; }
   flex: none;
   width: 40px;
   height: 40px;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--muted);
+  background: none;
+  color: var(--faint);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: color 140ms ease, transform 200ms var(--spring);
 }
-.search-go:hover { color: var(--ink); background: var(--hover); }
+.search-go .icon { width: 20px; height: 20px; }
+.search-go:hover, .search-go:focus-visible { color: var(--puan); }
+.search-go:focus-visible { outline: none; }
+.search-go:active { transform: scale(0.9); }
 
 .suggest {
   position: absolute;
@@ -464,7 +468,7 @@ a.chip:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* How a word is built */
-.build { display: flex; flex-direction: column; gap: 10px; }
+.build, .family, .roots { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-radius: 12px; background: var(--surface); }
 .build h2, .family h2, .english-list h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
 .parts { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
 .part {
@@ -473,12 +477,12 @@ a.chip:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-
   gap: 2px;
   padding: 8px 14px;
   border-radius: var(--radius);
-  background: var(--surface);
+  background: #fff;
   color: var(--ink);
   text-decoration: none;
   min-width: 64px;
 }
-a.part:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-2); }
+a.part:hover { box-shadow: inset 0 0 0 1px var(--line-2); }
 .part-w { font-family: var(--serif); font-size: 18px; font-weight: 500; }
 .part-g { font-size: 13px; color: var(--muted); max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .part-prefix .part-w, .part-suffix .part-w { color: var(--puan); }
@@ -507,16 +511,28 @@ a.part:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-
 .explain { font-size: 16px; line-height: 1.6; color: var(--body); }
 .remark { font-size: 14px; line-height: 1.55; color: var(--muted); }
 
-/* Examples: Zolai first, set apart from the meaning by a rule */
-.examples { margin: 0; padding: 0 0 0 16px; list-style: none; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+/* Examples: quoted sentences, set apart from the meaning */
+.examples { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.example { position: relative; padding-left: 26px; }
+.example::before {
+  content: '\201C';
+  position: absolute;
+  left: 0;
+  top: -6px;
+  font-family: var(--serif);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--line-2);
+}
 .example p { margin: 0; }
-.example-zo { font-family: var(--serif); font-size: 17px; line-height: 1.5; color: var(--ink); }
+.example-zo { display: block; quotes: none; font-family: var(--serif); font-size: 18px; line-height: 1.45; color: var(--ink); }
 .example-zo b { font-weight: 600; color: var(--puan); }
-.example-en { font-size: 14px; line-height: 1.5; color: var(--muted); }
-.example-ref { margin-left: 8px; font-size: 12px; color: var(--faint); }
+.example-en { margin-top: 2px; font-size: 14px; line-height: 1.5; font-style: italic; color: var(--muted); }
+.example-ref { margin-left: 8px; font-style: normal; font-size: 12px; color: var(--faint); }
+.more-row { display: flex; gap: 18px; margin: -4px 0 0 26px; }
 .more {
   align-self: flex-start;
-  margin: -4px 0 0 16px;
+  margin: 0;
   padding: 4px 0;
   border: 0;
   background: none;
@@ -567,8 +583,7 @@ a.part:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-
 .thanks { font-size: 13px; color: var(--ok); }
 
 /* Word family and English matches */
-.family { display: flex; flex-direction: column; gap: 10px; }
-.english-list { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+.english-list { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border-radius: 12px; background: var(--surface); }
 .english-list ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 16px; }
 .english-list li { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; min-width: 0; }
 .english-list li a { font-family: var(--serif); font-size: 17px; flex: none; }
@@ -674,3 +689,34 @@ a.card:hover { box-shadow: inset 0 0 0 1px var(--line-2), var(--shadow-field); }
 
 .loading-note { margin: 0; font-size: 14px; color: var(--muted); }
 .loading-note.is-error { color: var(--bad); }
+
+/* English roots of a word that is not in the dictionary */
+.roots h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.root { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line); }
+.root:first-of-type { border-top: 0; padding-top: 0; }
+.root p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--body); }
+.root-head b { font-size: 17px; font-weight: 600; color: var(--ink); }
+.root-via { margin-left: 8px; font-size: 13px; color: var(--faint); }
+.root-zo a, .root-def a { font-family: var(--serif); font-size: 16px; }
+.root-type { font-style: italic; color: var(--muted); }
+.root-none { color: var(--muted); }
+.english-help:empty { display: none; }
+
+/* Aside follows the reader on long entries (wide screens) */
+@media (min-width: 900px) {
+  .aside { position: sticky; top: 84px; align-self: flex-start; }
+}
+
+/* Dim the page while the search box is in use */
+.dim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(31, 28, 25, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.dim.on { opacity: 1; pointer-events: auto; }
+.search.is-active { z-index: 40; }
+body.is-dimmed .searchbar { z-index: 40; }

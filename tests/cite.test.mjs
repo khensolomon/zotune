@@ -81,6 +81,18 @@ test('words not in the lexicon are read as parts', () => {
   assert.equal(page, null, 'no examples before that tier is loaded');
 });
 
+test('English words are reduced to their roots', () => {
+  assert.ok(cite.englishStems('activities').includes('activity'));
+  assert.ok(cite.englishStems('lovings').includes('loving'));
+  assert.ok(cite.englishStems('running').includes('run'));
+  const model = load(FIXTURE, ['core']);
+  const terms = new Set(['love', 'hatred', 'hate']);
+  const roots = cite.englishRoots(model, 'Lovings', (w) => terms.has(w));
+  assert.deepEqual(roots.map((r) => [r.word, r.via]), [['love', 'ending']]);
+  assert.deepEqual(cite.englishRoots(model, 'loved', (w) => terms.has(w)).map((r) => r.word), ['love']);
+  assert.deepEqual(cite.englishRoots(model, 'itna?', () => true), [], 'only plain English words are reduced');
+});
+
 test('search documents cover headwords, variants, redirects, terms and links', () => {
   const model = load(FIXTURE, ['core']);
   const index = buildIndex(cite.searchDocs(model));

@@ -100,6 +100,10 @@ async function load(src, tiers) {
     const ex = await ensureTier(src, 'examples', 'example sentences');
     cite.addExamples(m, parseTier(config, ex, 'examples'));
   }
+  if (tiers.includes('english')) {
+    const en = await ensureTier(src, 'english', 'the English lexicon');
+    cite.addEnglish(m, parseTier(config, en, 'english'));
+  }
   return m;
 }
 
@@ -109,7 +113,10 @@ async function removeOtherVersions(ref) {
 }
 
 async function remember(src) {
-  active = { name: 'active', ref: src.ref, format: src.format, base: src.base, books, tiers: model.examples ? ['core', 'examples'] : ['core'] };
+  const tiers = ['core'];
+  if (model.examples) tiers.push('examples');
+  if (model.english) tiers.push('english');
+  active = { name: 'active', ref: src.ref, format: src.format, base: src.base, books, tiers };
   await store.put('meta', active);
 }
 
@@ -130,7 +137,9 @@ async function start() {
     .then((b) => b.book)
     .catch((err) => offlineFallback(err, () => previous.books));
   const tiers = ['core'];
-  if (options.full || (previous?.ref === source.ref && previous.tiers.includes('examples'))) tiers.push('examples');
+  for (const extra of ['examples', 'english']) {
+    if (options.full || (previous?.ref === source.ref && previous.tiers.includes(extra))) tiers.push(extra);
+  }
 
   let used = source;
   let offline = false;
@@ -149,36 +158,84 @@ async function start() {
   readyStatus(offline);
 }
 
-function englishFallback(query) {
-  const base = cite.englishBase(model, query);
-  return base && base !== query.trim().toLowerCase() ? base : null;
+/** True when a Zolai sense has the word as an English term. */
+function hasTerm(word) {
+  const key = matchKey(word);
+  return search(index, word, 30).some((h) => h.side === 'english' && h.score < 10 && matchKey(h.matched) === key);
+}
+
+/** Zolai words that have the word as an English term, best first. */
+function zolaiFor(word, limit) {
+  const key = matchKey(word);
+  return search(index, word, 200)
+    .filter((h) => h.side === 'english' && matchKey(h.matched) === key)
+    .slice(0, limit);
+}
+
+const roots = (query) => cite.englishRoots(model, query, hasTerm);
+
+let englishLoading = null;
+/** Loads the English lexicon once; false when it cannot be downloaded now. */
+async function ensureEnglish() {
+  if (model.english) return true;
+  englishLoading ??= ensureTier(active, 'english', 'the English lexicon')
+    .then(async (texts) => {
+      cite.addEnglish(model, parseTier(model.config, texts, 'english'));
+      await remember(active);
+      readyStatus(false);
+      return true;
+    })
+    .catch((err) => {
+      englishLoading = null;
+      if (err instanceof NetworkError) return false;
+      throw err;
+    });
+  return englishLoading;
 }
 
 const handlers = {
   suggest({ query, limit = 8 }) {
     const hits = search(index, query, limit);
     if (hits.length) return hits;
-    const base = englishFallback(query);
-    return base ? search(index, base, limit) : [];
+    // Nothing starts with the query: offer the Zolai words of its English roots.
+    const out = [];
+    for (const r of roots(query)) {
+      for (const h of zolaiFor(r.word, 3)) if (!out.some((o) => o.id === h.id)) out.push({ ...h, matched: r.word });
+      if (out.length >= limit) break;
+    }
+    return out.slice(0, limit);
   },
   resolve({ query }) {
-    let id = resolve(index, query);
-    if (!id) {
-      const base = englishFallback(query);
-      if (base) id = resolve(index, base);
+    const typed = query.trim();
+    const hits = search(index, typed, 50);
+    const exact = hits.filter((h) => h.score < 10);
+    const open = (id, via = null) => {
+      const e = cite.entry(model, id, { books });
+      return e ? { ...e, via } : null;
+    };
+    if (exact.length) return open((exact.find((h) => h.word === typed) ?? exact[0]).id);
+    // An English word in another form (loves, creatures) before a prefix match.
+    for (const r of roots(typed)) {
+      const z = zolaiFor(r.word, 1)[0];
+      if (z) return open(z.id, { from: typed, to: r.word });
     }
-    return id ? cite.entry(model, id, { books }) : null;
+    return hits.length ? open(hits[0].id) : null;
   },
   entry: ({ id }) => cite.entry(model, id, { books }),
   examples: ({ sense, offset = 0, limit = 10 }) => cite.examplesFor(model, sense, books, limit, offset),
   analyse: ({ query }) => cite.analyse(model, query),
-  /** Zolai words that have the query as an English term, best first. */
-  english({ query, limit = 30 }) {
-    const key = matchKey(englishFallback(query) ?? query);
-    return search(index, query, 200)
-      .concat(englishFallback(query) ? search(index, englishFallback(query), 200) : [])
-      .filter((h) => h.side === 'english' && matchKey(h.matched) === key)
-      .slice(0, limit);
+  english: ({ query, limit = 30 }) => zolaiFor(query, limit),
+  /**
+   * English roots of a query with their Zolai words and, from the English
+   * lexicon, their meanings and equivalent Zolai senses. The lexicon is
+   * downloaded on first use.
+   */
+  async englishHelp({ query }) {
+    const available = await ensureEnglish();
+    return {
+      available,
+      roots: roots(query).map((r) => ({ ...r, zolai: zolaiFor(r.word, 6), concepts: cite.englishConcepts(model, r.word, 3) }))
+    };
   },
   neighbours: ({ id }) => neighbours(index, id),
   info: () => ({ ref: active.ref, format: active.format, base: baseUrl(active), tiers: active.tiers, stats: cite.stats(model) }),
