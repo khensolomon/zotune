@@ -1,6 +1,7 @@
 import { h, mount } from '../dom.js';
 import { searchField } from '../components/search-field.js';
 import { definitionPath } from '../router.js';
+import { loadingNote } from '../components/loading.js';
 
 const TRY = ['itna', 'lungdamna', 'love'];
 
@@ -27,7 +28,8 @@ export default {
           'div',
           { class: 'home-search' },
           field.el,
-          h('div', { class: 'try' }, h('span', null, 'Try'), TRY.map((w) => h('a', { class: 'chip', href: definitionPath(w) }, w)))
+          h('div', { class: 'try' }, h('span', null, 'Try'), TRY.map((w) => h('a', { class: 'chip', href: definitionPath(w) }, w))),
+          loadingNote()
         )
       )
     );

@@ -1,6 +1,7 @@
 // Promise-based client for the data worker.
 
 const worker = new Worker(new URL('./workers/data.worker.js', import.meta.url), { type: 'module', name: 'zotune-data' });
+worker.postMessage({ type: 'init', args: { full: Boolean(globalThis.zotune) } });
 const pending = new Map();
 const listeners = new Set();
 let seq = 0;
@@ -41,7 +42,8 @@ export const data = {
   resolve: (query) => request('resolve', { query }),
   entry: (id) => request('entry', { id }),
   neighbours: (id) => request('neighbours', { id }),
-  info: () => request('info')
+  info: () => request('info'),
+  downloadExamples: () => request('downloadExamples')
 };
 
 /** Subscribes to dataset status; the current status is delivered at once. */

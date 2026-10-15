@@ -19,6 +19,10 @@ const SHELL = [
   '/js/store.js',
   '/js/actions.js',
   '/js/search-index.js',
+  '/js/cite.js',
+  '/js/components/loading.js',
+  '/data/source.json',
+  '/data/books.json',
   '/js/search-client.js',
   '/js/workers/data.worker.js',
   '/js/components/header.js',
@@ -55,8 +59,22 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetch(req).catch(() => caches.match('/index.html')));
     return;
   }
-  // Dataset: always from the network; the data worker falls back to IndexedDB.
-  if (url.pathname.startsWith('/data/')) return;
+  // Version and book names: network first, so a new version is seen at once.
+  // The tables themselves come from another origin and live in IndexedDB.
+  if (url.pathname.startsWith('/data/')) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit ?? Response.error()))
+    );
+    return;
+  }
 
   // Static files: cache first, refreshed in the background.
   event.respondWith(

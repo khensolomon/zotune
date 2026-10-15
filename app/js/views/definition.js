@@ -2,53 +2,37 @@ import { h, icon, ICONS, mount } from '../dom.js';
 import { data } from '../search-client.js';
 import { definitionPath, navigate } from '../router.js';
 import { markedParts, matchKey } from '../text.js';
+import { loadingNote } from '../components/loading.js';
 import * as actions from '../actions.js';
 
-const STATUS_LABEL = {
-  low: 'Low confidence',
-  draft: 'Draft',
-  reviewed: 'Reviewed',
-  confirmed: 'Confirmed',
-  disputed: 'Disputed',
-  retired: 'Retired'
-};
-
 const EXAMPLES = [
-  { k: 'A Zolai word', w: 'itna', g: 'love; affection' },
+  { k: 'A Zolai word', w: 'itna', g: 'love, affection' },
   { k: 'An English word', w: 'love', g: 'finds the Zolai words for it' },
-  { k: 'Written two ways', w: 'it na', g: 'joined or split, both work' }
+  { k: 'Written two ways', w: 'a om', g: 'joined or split, both work' }
 ];
+const MAX_VERSES = 6;
 
-/** Prose with `{zolai}` and `<link>` marks. */
+const capital = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** A link to a word, or to one sense of it (`khat.2`). */
+function wordLink(word, number) {
+  return h('a', { href: definitionPath(word) }, word, number ? h('sup', null, String(number)) : null);
+}
+
+/** Prose with `{zolai}` mentions and `<word>` / `<word.n>` links. */
 function marked(text) {
   return markedParts(text).map((p) => {
-    if (p.kind === 'zo') return h('span', { class: 'zo' }, p.text);
-    if (p.kind === 'link') return h('a', { href: definitionPath(p.text) }, p.text);
+    if (p.kind === 'zo') return h('span', { class: 'zo', lang: 'ctd' }, p.text);
+    if (p.kind === 'link') {
+      const m = /^(.+)\.(\d+)$/.exec(p.text);
+      return m ? wordLink(m[1], m[2]) : wordLink(p.text);
+    }
     return p.text;
   });
 }
 
-/** Example sentence with the headword (and its spellings) in bold. */
-function emphasise(sentence, words) {
-  const escaped = words.filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  if (!escaped.length) return sentence;
-  const re = new RegExp(`(^|[^\\p{L}])(${escaped.join('|')})(?=$|[^\\p{L}])`, 'giu');
-  const out = [];
-  let last = 0;
-  let m;
-  while ((m = re.exec(sentence))) {
-    const start = m.index + m[1].length;
-    if (start > last) out.push(sentence.slice(last, start));
-    out.push(h('b', null, m[2]));
-    last = start + m[2].length;
-  }
-  if (last < sentence.length) out.push(sentence.slice(last));
-  return out;
-}
-
-function links(label, words) {
-  if (!words?.length) return null;
-  return [`${label}: `, words.flatMap((w, i) => [i ? ', ' : null, h('a', { href: definitionPath(w) }, w)])];
+function joinNodes(nodes, sep = ', ') {
+  return nodes.flatMap((n, i) => (i ? [sep, n] : [n]));
 }
 
 function howTo(root) {
@@ -61,6 +45,7 @@ function howTo(root) {
         'div',
         { class: 'howto' },
         h('h1', null, 'Type a word to see what it means'),
+        loadingNote(),
         h(
           'div',
           { class: 'cards' },
@@ -115,10 +100,29 @@ function feedback(sense, votes) {
     });
     return h('div', { class: 'feedback-group', role: 'group', 'aria-label': question }, h('span', null, question), buttons);
   };
-  return h('div', { class: 'feedback' }, group('helpful', 'Helpful?'), group('correct', 'Correct?'));
+  return h(
+    'div',
+    { class: 'feedback' },
+    h('span', { class: 'status', dataset: { status: sense.statusName } }, capital(sense.statusName)),
+    group('helpful', 'Helpful?'),
+    group('correct', 'Correct?')
+  );
 }
 
-function senseBlock(sense, n, words, votes) {
+function sources(sense) {
+  const parts = [];
+  if (sense.bible.length) {
+    const shown = sense.bible.slice(0, MAX_VERSES).join(', ');
+    const more = sense.bible.length - MAX_VERSES;
+    parts.push(more > 0 ? `${shown} and ${more} more` : shown);
+  }
+  parts.push(...sense.named);
+  return parts.length ? h('div', { class: 'related' }, 'Found in ', parts.join(' · ')) : null;
+}
+
+function senseBlock(sense, n, votes) {
+  const gloss = sense.terms.length ? sense.terms.join(', ') : null;
+  const tags = [...sense.fields, ...sense.categories];
   return h(
     'div',
     { class: 'sense', id: sense.id },
@@ -126,43 +130,53 @@ function senseBlock(sense, n, words, votes) {
     h(
       'div',
       { class: 'sense-body' },
-      h('div', { class: 'gloss' }, sense.gloss),
-      sense.definition ? h('div', { class: 'prose' }, marked(sense.definition)) : null,
+      gloss ? h('div', { class: 'gloss' }, gloss) : null,
+      sense.definition ? h('div', { class: gloss ? 'prose' : 'gloss' }, marked(sense.definition)) : null,
+      sense.text ? h('div', { class: 'prose' }, marked(sense.text)) : null,
       (sense.examples ?? []).map((ex) =>
         h(
           'div',
           { class: 'example' },
-          h('div', { class: 'example-zo', lang: 'ctd' }, emphasise(ex.zo, words)),
+          h('div', { class: 'example-zo', lang: 'ctd' }, ex.parts.map((p) => (p.mark ? h('b', null, p.text) : p.text))),
           h('div', { class: 'example-en' }, ex.en, ex.ref ? ` · ${ex.ref}` : '')
         )
       ),
-      sense.note ? h('div', { class: 'related' }, marked(sense.note)) : null,
-      sense.similar?.length || sense.opposite?.length
-        ? h('div', { class: 'related' }, links('Similar', sense.similar), sense.similar?.length && sense.opposite?.length ? ' · ' : null, links('Opposite', sense.opposite))
-        : null,
+      sense.exampleCount > (sense.examples?.length ?? 0) ? h('div', { class: 'related' }, `${sense.exampleCount - sense.examples.length} more examples`) : null,
+      sense.relations.map((r) => h('div', { class: 'related' }, `${r.label}: `, joinNodes(r.targets.map((t) => wordLink(t.word, t.number)), r.kind === 'j' ? ' + ' : ', '))),
+      sense.origin ? h('div', { class: 'related' }, `From ${sense.origin}`) : null,
+      tags.length ? h('div', { class: 'related' }, tags.join(' · ')) : null,
+      sources(sense),
       feedback(sense, votes)
     )
   );
 }
 
+function statusSummary(entry) {
+  const counts = new Map();
+  for (const s of entry.senses) counts.set(s.statusName, (counts.get(s.statusName) ?? 0) + 1);
+  return [...counts].map(([name, count]) =>
+    h('span', { class: 'status', dataset: { status: name } }, entry.senses.length > 1 ? `${capital(name)}: ${count}` : capital(name))
+  );
+}
+
 async function showEntry(root, entry, query) {
-  const words = [entry.word, ...(entry.spellings ?? [])];
   const [bookmarked, liked, votes] = await Promise.all([
     actions.isMarked('bookmark', entry.id),
     actions.isMarked('like', entry.id),
     actions.votesFor(entry.senses.map((s) => s.id))
   ]);
 
-  const exact = matchKey(query) === matchKey(entry.word) || (entry.spellings ?? []).some((s) => matchKey(s) === matchKey(query));
+  const exact = matchKey(query) === matchKey(entry.word) || entry.redirectFrom.some((w) => matchKey(w) === matchKey(query));
   let others = [];
   if (!exact) others = (await data.suggest(query, 6)).filter((hit) => hit.id !== entry.id);
 
   const groups = [];
   for (const s of entry.senses) {
-    let g = groups.find((x) => x.pos === s.pos);
-    if (!g) groups.push((g = { pos: s.pos, senses: [] }));
+    let g = groups.find((x) => x.type === s.typeName);
+    if (!g) groups.push((g = { type: s.typeName, senses: [] }));
     g.senses.push(s);
   }
+  const examplesMissing = entry.senses.some((s) => s.examples === null);
 
   mount(
     root,
@@ -174,34 +188,28 @@ async function showEntry(root, entry, query) {
         { class: 'definition' },
         h(
           'article',
-          { class: 'entry', lang: 'en' },
+          { class: 'entry' },
           h(
             'div',
             { class: 'entry-head' },
-            exact ? null : h('div', { class: 'related' }, `Showing the Zolai word for “${query}”`, others.length ? ' · also: ' : null, others.flatMap((o, i) => [i ? ', ' : null, h('a', { href: definitionPath(o.word) }, o.word)])),
+            entry.redirectFrom.length ? h('div', { class: 'related' }, `“${entry.redirectFrom.join(', ')}” leads to this word`) : null,
+            exact
+              ? null
+              : h('div', { class: 'related' }, `Showing the Zolai word for “${query}”`, others.length ? ' · also: ' : null, joinNodes(others.map((o) => wordLink(o.word)))),
             h('h1', { class: 'headword', lang: 'ctd' }, entry.word),
-            entry.syllables || entry.origin ? h('div', { class: 'origin' }, entry.syllables ?? '', entry.syllables && entry.origin ? ' · ' : '', entry.origin ? marked(entry.origin) : null) : null,
-            entry.spellings?.length
-              ? h('div', { class: 'row' }, entry.spellings.map((s) => h('a', { class: 'chip outline', href: definitionPath(s) }, 'also written ', h('b', null, s))))
-              : null,
+            entry.partOf.length ? h('div', { class: 'origin' }, 'Part of ', joinNodes(entry.partOf.map((t) => wordLink(t.word, t.number)))) : null,
             h('div', { class: 'row' }, toggle('Bookmark', 'bookmark', entry, bookmarked), toggle('Like', 'like', entry, liked))
           ),
-          groups.map((g) => h('section', { class: 'pos' }, h('h2', null, g.pos), g.senses.map((s, i) => senseBlock(s, i + 1, words, votes))))
+          groups.map((g) => h('section', { class: 'pos' }, h('h2', null, g.type), g.senses.map((s, i) => senseBlock(s, i + 1, votes)))),
+          examplesMissing ? h('p', { class: 'related' }, 'Example sentences are not on this device yet. ', h('a', { href: '/workspace' }, 'Get them in Workspace')) : null
         ),
         h(
           'aside',
           { class: 'aside', 'aria-label': 'About this entry' },
-          entry.english?.length
-            ? h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'In English'), h('div', { class: 'row' }, entry.english.map((e) => h('a', { class: 'chip sm', href: definitionPath(e) }, e))))
+          entry.english.length
+            ? h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'In English'), h('div', { class: 'row' }, entry.english.slice(0, 12).map((e) => h('a', { class: 'chip sm', href: definitionPath(e) }, e))))
             : null,
-          h(
-            'div',
-            { class: 'aside-block' },
-            h('span', { class: 'aside-label' }, 'Status'),
-            h('span', { class: 'status', dataset: { status: entry.status ?? 'draft' } }, STATUS_LABEL[entry.status] ?? 'Draft'),
-            entry.statusNote ? h('span', null, entry.statusNote) : null
-          ),
-          entry.source ? h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'Found in'), h('span', null, entry.source)) : null,
+          h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'Status'), statusSummary(entry)),
           h('div', null, h('a', { class: 'btn', href: `/workspace/entry/${encodeURIComponent(entry.id)}` }, icon(ICONS.edit), 'Improve this entry'))
         )
       )
@@ -218,6 +226,7 @@ export default {
       howTo(root);
       return null;
     }
+    mount(root, h('div', { class: 'page' }, loadingNote()));
     const entry = await data.resolve(word);
     if (!entry) {
       await notFound(root, word);

@@ -557,3 +557,8 @@ a.card:hover { box-shadow: inset 0 0 0 1px var(--line-2), var(--shadow-field); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Loading note ---------- */
+
+.loading-note { margin: 0; font-size: 14px; color: var(--muted); }
+.loading-note.is-error { color: var(--bad); }

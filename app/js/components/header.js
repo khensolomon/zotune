@@ -49,7 +49,10 @@ export function createHeader(root) {
 
   onStatus((s) => {
     status.dataset.state = s.state;
-    const text = s.state === 'error' ? `${STATUS_TEXT.error} ${s.message ?? ''}`.trim() : STATUS_TEXT[s.state];
+    let text = STATUS_TEXT[s.state];
+    if (s.state === 'error') text = `${STATUS_TEXT.error} ${s.message ?? ''}`.trim();
+    if (s.state === 'loading' && s.step) text = s.total ? `${s.step} (${s.done + 1} of ${s.total})…` : `${s.step}…`;
+    if (s.state === 'ready' && s.offline) text = 'No connection. Using the dictionary saved on this device.';
     status.title = text;
     status.setAttribute('aria-label', text);
   });

@@ -1,0 +1,10 @@
+id	word	number	type	category	field	set	status	origin	source	note
+s1	w1	1	v		everyday/family	core	3		43.3.16/zai:love	
+s2	w2	1	n		everyday	core	2		65.1.2/zai:love/zai:affection	
+s3	w2	2	n			bible	1		46.13.2	
+s4	w3	1	suffix			core	2		zai:na	
+s5	w5	1	n			bible	2		41.11.22	
+s6	w6	1	v			core	2		zai:god	
+s7	w7	1	n			core	0		zai:old	
+s8	w9	1	name	place		name	2	Hebrew, beer sheba	1.21.14	
+s9	w10	1	n			core	2		zai:hatred	
