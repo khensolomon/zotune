@@ -565,6 +565,9 @@ async function showEntry(root, entry, query) {
             ),
             summaryLine(entry),
             entry.alsoWritten.length ? h('p', { class: 'also' }, 'Also written ', joinNodes(entry.alsoWritten.map((w) => wordLink(w)), ', ')) : null,
+            entry.otherCases.length
+              ? h('p', { class: 'also' }, 'Not the same as ', joinNodes(entry.otherCases.map((o) => h('span', null, wordLink(o.word), h('span', { class: 'case-g' }, ` (${o.typeName}: ${o.gloss})`))), ', '))
+              : null,
             entry.partOf.length ? h('p', { class: 'also' }, 'Part of ', joinNodes(entry.partOf.map((t) => wordLink(t.word, t.number)))) : null
           ),
           build

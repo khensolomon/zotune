@@ -103,8 +103,15 @@ IndexedDB database.
   the written form.
 - Index: sorted array of `[key, wordId, side, text]` with binary-search prefix
   lookup. Exact matches rank first, then headword, variant spelling, English term.
-- Case is significant in the data (`Pasian` and `pasian` are different words).
-  Matching ignores case; opening a word prefers the spelling with the same case.
+- Spellings that differ only in capitals are one result when they mean the
+  same: they share an English term written alike, and neither is only a name
+  (`dawimangpa` and `Dawimangpa`; 408 such spellings in October 2026). The word
+  is shown under the spelling with the fewest capitals, with the other spellings
+  under "Also written", and their meanings together without repeats.
+- Spellings that differ only in capitals and mean different things stay apart
+  and point at each other: `Pasian` (God) and `pasian` (god), `Adah` (a name)
+  and `adah` (addled egg). A query written exactly like one of them opens that
+  one; otherwise matching ignores case.
 - English irregular forms (`lang/eng/form`) reduce a query such as `ran` to `run`
   when nothing matches the form itself.
 

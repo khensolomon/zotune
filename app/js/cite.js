@@ -283,13 +283,70 @@ function shortGloss(model, senseRow) {
   return g[G.terms] ? g[G.terms].replaceAll('/', ', ') : plain(g[G.definition]);
 }
 
+const isNameWord = (model, id) => model.sensesByWord.get(id).every((x) => x[S.type] === 'name');
+
+function termSet(model, id) {
+  const out = new Set();
+  // Case is kept: God and god are different meanings in English too.
+  for (const x of model.sensesByWord.get(id)) for (const t of list(model.gloss.get(x[S.id])?.[G.terms] ?? '')) out.add(t);
+  return out;
+}
+
+/** Two spellings that differ only in capitals mean the same when they share a term (written alike, capitals included) and neither is only a name. */
+function sameMeaning(model, a, b) {
+  if (isNameWord(model, a) !== isNameWord(model, b)) return false;
+  const ta = termSet(model, a);
+  for (const t of termSet(model, b)) if (ta.has(t)) return true;
+  return false;
+}
+
+/**
+ * Spellings that differ only in capitals. Those with the same meaning are one
+ * word, shown under the spelling with the fewest capitals (dawimangpa,
+ * Dawimangpa); those with another meaning stay apart and point at each other
+ * (god, God; adah, Adah).
+ */
+export function caseFolds(model) {
+  if (!model.cases) {
+    const byLower = new Map();
+    for (const id of model.sensesByWord.keys()) {
+      const k = model.words.get(id)[W.spelling].toLowerCase();
+      if (!byLower.has(k)) byLower.set(k, []);
+      byLower.get(k).push(id);
+    }
+    const capitals = (id) => (model.words.get(id)[W.spelling].match(/\p{Lu}/gu) ?? []).length;
+    const primaryOf = new Map();
+    const members = new Map();
+    const apart = new Map();
+    for (const ids of byLower.values()) {
+      if (ids.length < 2) continue;
+      ids.sort((a, b) => capitals(a) - capitals(b));
+      const clusters = [];
+      for (const id of ids) {
+        const c = clusters.find((cl) => sameMeaning(model, cl[0], id));
+        if (c) c.push(id);
+        else clusters.push([id]);
+      }
+      for (const cl of clusters) {
+        members.set(cl[0], cl);
+        for (const id of cl.slice(1)) primaryOf.set(id, cl[0]);
+        apart.set(cl[0], clusters.filter((x) => x !== cl).map((x) => x[0]));
+      }
+    }
+    model.cases = { primaryOf, members, apart };
+  }
+  return model.cases;
+}
+
 /**
  * Search documents: one per word that has a meaning, plus variant spellings and
  * English terms pointing at the words that carry them.
  */
 export function searchDocs(model) {
   const docs = new Map();
-  const doc = (wordRow) => {
+  const { primaryOf } = caseFolds(model);
+  const doc = (row) => {
+    const wordRow = primaryOf.has(row[W.id]) ? model.words.get(primaryOf.get(row[W.id])) : row;
     let d = docs.get(wordRow[W.id]);
     if (!d) {
       const first = model.sensesByWord.get(wordRow[W.id])?.[0];
@@ -607,12 +664,14 @@ export function similarWords(model, text, max = 6) {
   if (w.length < 2) return [];
   const limit = w.length < 5 ? 1 : 2;
   const found = [];
+  const { primaryOf } = caseFolds(model);
   for (const [key, ids] of lexicon(model)) {
     if (key === w || Math.abs(key.length - w.length) > limit) continue;
     if (key[0] !== w[0] && key[1] !== w[1]) continue;
     const d = editDistance(w, key, limit);
     if (d > limit) continue;
     for (const id of ids) {
+      if (primaryOf.has(id)) continue;
       const first = model.sensesByWord.get(id)[0];
       if (first[S.type] === 'name' && w[0] === w[0].toLowerCase()) continue;
       found.push({ word: model.words.get(id)[W.spelling], gloss: shortGloss(model, first), d, rank: Number(first[S.status]) });
@@ -629,6 +688,9 @@ export function exactWords(model, token) {
   const ids = lexicon(model).get(token.toLowerCase().replace(/[ '-]/g, '')) ?? [];
   return [...ids].sort((a, b) => Number(model.words.get(b)[W.spelling] === token) - Number(model.words.get(a)[W.spelling] === token));
 }
+
+/** The spelling of a word. */
+export const spellingOf = (model, wordId) => model.words.get(wordId)?.[W.spelling] ?? null;
 
 /** Short gloss of the first meaning of a word. */
 export function glossOf(model, wordId) {
@@ -728,10 +790,24 @@ export function entry(model, wordId, { books = null, exampleLimit = 3 } = {}) {
     redirectFrom.push(word[W.spelling]);
     word = model.words.get(main);
   }
+  const cases = caseFolds(model);
+  if (cases.primaryOf.has(word[W.id])) word = model.words.get(cases.primaryOf.get(word[W.id]));
   const cfg = model.config;
   const spelling = word[W.spelling];
   const alsoWritten = new Set(redirectFrom);
-  const senses = model.sensesByWord.get(word[W.id]).map((s) => {
+  // The meanings of every spelling that differs only in capitals and means the
+  // same, without repeating a meaning that is the same in both.
+  const caseMembers = cases.members.get(word[W.id]) ?? [word[W.id]];
+  for (const id of caseMembers) alsoWritten.add(model.words.get(id)[W.spelling]);
+  const seenMeaning = new Set();
+  const rows = caseMembers.flatMap((id) => model.sensesByWord.get(id)).filter((x) => {
+    const g = model.gloss.get(x[S.id]);
+    const sig = [x[S.type], list(g?.[G.terms] ?? '').map((t) => t.toLowerCase()).sort().join('/'), g?.[G.definition] ?? ''].join('|');
+    if (seenMeaning.has(sig)) return false;
+    seenMeaning.add(sig);
+    return true;
+  });
+  const senses = rows.map((s) => {
     const id = s[S.id];
     const g = model.gloss.get(id);
     const groups = new Map();
@@ -753,10 +829,11 @@ export function entry(model, wordId, { books = null, exampleLimit = 3 } = {}) {
     }));
     const src = formatSources(model, list(s[S.source]), books);
     const number = s[S.number] ? Number(s[S.number]) : null;
+    const own = model.words.get(s[S.word])[W.spelling];
     return {
       id,
       number,
-      key: number ? `${spelling}.${number}` : id,
+      key: number ? `${own}.${number}` : id,
       type: s[S.type],
       typeName: cfg.type?.[s[S.type]]?.name ?? s[S.type],
       categories: list(s[S.category]).map((c) => cfg.category?.[c]?.name ?? c),
@@ -792,6 +869,10 @@ export function entry(model, wordId, { books = null, exampleLimit = 3 } = {}) {
     construction: construction(model, word),
     builtOn: fam.builtOn,
     usedIn: fam.usedIn,
+    otherCases: (cases.apart.get(word[W.id]) ?? []).map((id) => {
+      const first = model.sensesByWord.get(id)[0];
+      return { word: model.words.get(id)[W.spelling], gloss: shortGloss(model, first), typeName: cfg.type?.[first[S.type]]?.name ?? first[S.type] };
+    }),
     senses
   };
 }

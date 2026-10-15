@@ -93,6 +93,20 @@ test('English words are reduced to their roots', () => {
   assert.deepEqual(cite.englishRoots(model, 'itna?', () => true), [], 'only plain English words are reduced');
 });
 
+test('spellings that differ only in capitals are one word when they mean the same', () => {
+  const model = load(FIXTURE, ['core']);
+  const e = cite.entry(model, 'w11', { books });
+  assert.equal(e.word, 'huatna', 'shown under the spelling with fewer capitals');
+  assert.ok(e.alsoWritten.includes('Huatna'));
+  assert.deepEqual(e.senses.map((x) => x.terms.join('/')), ['hatred/hate', 'hatred/enmity']);
+  const god = cite.entry(model, 'w5', { books });
+  assert.equal(god.word, 'Pasian', 'a different meaning stays apart');
+  assert.deepEqual(god.otherCases.map((o) => o.word), ['pasian']);
+  const index = buildIndex(cite.searchDocs(model));
+  assert.equal(search(index, 'huatna').filter((h) => h.side === 'word').length, 1, 'one suggestion for both spellings');
+  assert.equal(resolve(index, 'Huatna'), 'w10');
+});
+
 test('search documents cover headwords, variants, redirects, terms and links', () => {
   const model = load(FIXTURE, ['core']);
   const index = buildIndex(cite.searchDocs(model));
@@ -104,8 +118,8 @@ test('search documents cover headwords, variants, redirects, terms and links', (
   assert.equal(resolve(index, 'pasian'), 'w6');
   assert.equal(cite.englishBase(model, 'Loved'), 'love');
   const s = cite.stats(model);
-  assert.equal(s.words, 7);
-  assert.deepEqual(s.byStatus.map((x) => [x.name, x.count]), [['low', 1], ['draft', 6], ['reviewed', 1]]);
+  assert.equal(s.words, 8);
+  assert.deepEqual(s.byStatus.map((x) => [x.name, x.count]), [['low', 1], ['draft', 7], ['reviewed', 1]]);
 });
 
 const REAL = process.env.ZOTUNE_CITE;

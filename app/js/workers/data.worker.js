@@ -214,6 +214,10 @@ const handlers = {
       const e = cite.entry(model, id, { books });
       return e ? { ...e, via } : null;
     };
+    // A spelling written exactly as typed, capitals included, decides between
+    // words that differ only in capitals (Pasian, God; pasian, god).
+    const same = cite.exactWords(model, typed).find((id) => cite.spellingOf(model, id) === typed);
+    if (same) return open(same);
     if (exact.length) return open((exact.find((h) => h.word === typed) ?? exact[0]).id);
     // An English word in another form (loves, creatures) before a prefix match.
     for (const r of roots(typed)) {

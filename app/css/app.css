@@ -876,3 +876,5 @@ a.tok-w:hover { text-decoration: underline; text-underline-offset: 3px; }
 .tool[data-state='loading'] .dot { animation: none; opacity: 0; }
 .settings h3 { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--body); }
 .setting { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
+.case-g { color: var(--muted); }
