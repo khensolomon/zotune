@@ -6,6 +6,7 @@ import * as store from '../store.js';
 import * as cite from '../cite.js';
 import { buildIndex, search, resolve, neighbours } from '../search-index.js';
 import { matchKey } from '../text.js';
+import { numberWords } from '../query.js';
 
 const SOURCE_URL = new URL('../../data/source.json', import.meta.url);
 const BOOKS_URL = new URL('../../data/books.json', import.meta.url);
@@ -219,8 +220,47 @@ const handlers = {
       const z = zolaiFor(r.word, 1)[0];
       if (z) return open(z.id, { from: typed, to: r.word });
     }
-    return hits.length ? open(hits[0].id) : null;
+    // No silent jump to a word that only starts like the query: the page
+    // explains what was not found and offers the nearest words instead.
+    return null;
   },
+  similar: ({ query, limit = 6 }) => cite.similarWords(model, query, limit),
+  /** Each word of a phrase with its meaning: Zolai, English, or nearest. */
+  breakdown({ words }) {
+    return words.slice(0, 40).map((token) => {
+      if (/^\d+$/.test(token)) {
+        const ids = cite.exactWords(model, token);
+        return { token, kind: 'number', word: ids.length ? token : null, gloss: ids.length ? cite.glossOf(model, ids[0]) : '' };
+      }
+      const ids = cite.exactWords(model, token);
+      if (ids.length) {
+        const w = cite.entry(model, ids[0], { books, exampleLimit: 0 });
+        return { token, kind: 'zolai', word: w.word, gloss: cite.glossOf(model, w.id) };
+      }
+      const zo = zolaiFor(token, 3);
+      if (zo.length) return { token, kind: 'english', zolai: zo.map((z) => ({ word: z.word, gloss: z.gloss })) };
+      for (const r of roots(token)) {
+        const z = zolaiFor(r.word, 3);
+        if (z.length) return { token, kind: 'english', root: r.word, zolai: z.map((x) => ({ word: x.word, gloss: x.gloss })) };
+      }
+      const near = cite.similarWords(model, token, 1)[0];
+      const reading = cite.analyse(model, token, 1)[0];
+      return { token, kind: 'unknown', near: near ?? null, reading: reading ?? null };
+    });
+  },
+  /** A number: its Zolai entry if any, its English words and their Zolai. */
+  numberHelp({ value }) {
+    const words = numberWords(value);
+    const parts = (words ?? '').split(/[ -]/).filter(Boolean);
+    const seen = new Set();
+    return {
+      words,
+      parts: parts
+        .filter((p) => (seen.has(p) ? false : seen.add(p)))
+        .map((p) => ({ english: p, zolai: zolaiFor(p, 2).map((z) => ({ word: z.word, gloss: z.gloss })) }))
+    };
+  },
+  phraseExamples: ({ text }) => cite.examplesContaining(model, text, books, 5),
   entry: ({ id }) => cite.entry(model, id, { books }),
   examples: ({ sense, offset = 0, limit = 10 }) => cite.examplesFor(model, sense, books, limit, offset),
   analyse: ({ query }) => cite.analyse(model, query),

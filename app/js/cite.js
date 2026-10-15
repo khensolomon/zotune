@@ -1,3 +1,5 @@
+import { editDistance } from './query.js';
+
 // Reader for the cite dictionary tables (laisiangtho/bible/cite, Format.md).
 // Pure functions: parse the table files, assemble the model, build search
 // documents and screen-ready entries. Runs in the data worker and under Node.
@@ -593,6 +595,63 @@ export function analyse(model, text, max = 3) {
       return true;
     })
     .slice(0, max);
+}
+
+/**
+ * Headwords spelled closest to a word that is not in the lexicon: one edit
+ * away for short words, two for longer ones; nearest first, reviewed and
+ * confirmed meanings before drafts.
+ */
+export function similarWords(model, text, max = 6) {
+  const w = text.toLowerCase().replace(/[ '-]/g, '');
+  if (w.length < 2) return [];
+  const limit = w.length < 5 ? 1 : 2;
+  const found = [];
+  for (const [key, ids] of lexicon(model)) {
+    if (key === w || Math.abs(key.length - w.length) > limit) continue;
+    if (key[0] !== w[0] && key[1] !== w[1]) continue;
+    const d = editDistance(w, key, limit);
+    if (d > limit) continue;
+    for (const id of ids) {
+      const first = model.sensesByWord.get(id)[0];
+      if (first[S.type] === 'name' && w[0] === w[0].toLowerCase()) continue;
+      found.push({ word: model.words.get(id)[W.spelling], gloss: shortGloss(model, first), d, rank: Number(first[S.status]) });
+    }
+  }
+  return found
+    .sort((a, b) => a.d - b.d || b.rank - a.rank || Math.abs(a.word.length - w.length) - Math.abs(b.word.length - w.length) || a.word.localeCompare(b.word))
+    .slice(0, max)
+    .map(({ word, gloss }) => ({ word, gloss }));
+}
+
+/** Word ids whose spelling is exactly the token, the same case first. */
+export function exactWords(model, token) {
+  const ids = lexicon(model).get(token.toLowerCase().replace(/[ '-]/g, '')) ?? [];
+  return [...ids].sort((a, b) => Number(model.words.get(b)[W.spelling] === token) - Number(model.words.get(a)[W.spelling] === token));
+}
+
+/** Short gloss of the first meaning of a word. */
+export function glossOf(model, wordId) {
+  const first = model.sensesByWord.get(wordId)?.[0];
+  return first ? shortGloss(model, first) : '';
+}
+
+/** Example sentences that contain the text, for phrases not in the lexicon. */
+export function examplesContaining(model, text, books, max = 5) {
+  if (!model.examples) return null;
+  const needle = ` ${text.toLowerCase().replace(/\s+/g, ' ').trim()} `;
+  const out = [];
+  for (const [id, row] of model.examples.text) {
+    const hay = ` ${row[2].toLowerCase().replace(/[.,;:!?“”"()]/g, ' ').replace(/\s+/g, ' ')} `;
+    const at = hay.indexOf(needle);
+    if (at < 0) continue;
+    const src = row[1] ? formatSources(model, [row[1]], books) : { bible: [], named: [] };
+    const start = hay.slice(0, at + 1).trim().split(' ').filter(Boolean).length + 1;
+    const length = needle.trim().split(' ').length;
+    out.push({ id, parts: markExample(row[2], [[[start], length]]), en: model.examples.translation.get(id) ?? '', ref: [...src.bible, ...src.named].join(', ') });
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 /** Screen-ready entry for one word, or null. */

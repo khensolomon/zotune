@@ -3,6 +3,7 @@ import { data } from '../search-client.js';
 import { definitionPath, navigate } from '../router.js';
 import { markedParts, matchKey } from '../text.js';
 import { loadingNote } from '../components/loading.js';
+import { classify } from '../query.js';
 import * as actions from '../actions.js';
 import { rememberWord } from '../recent.js';
 
@@ -122,9 +123,31 @@ function rootsBlock(word, result) {
   );
 }
 
-async function notFound(root, word) {
-  const [hits, readings] = await Promise.all([data.suggest(word, 6), data.analyse(word)]);
+const SUGGEST_LINK = (word, what = 'word') => h('a', { class: 'btn', href: `/workspace/entry/new?word=${encodeURIComponent(word)}` }, icon(ICONS.edit), `Suggest this ${what}`);
+
+function panel(title, ...body) {
+  return h('section', { class: 'panel' }, title ? h('h2', null, ...[].concat(title)) : null, body);
+}
+
+function wordChips(list) {
+  return h('div', { class: 'row' }, list.map((w) => h('a', { class: 'chip outline serif', href: definitionPath(w.word), title: w.gloss || null, lang: 'ctd' }, w.word)));
+}
+
+function wordRows(list) {
+  return h('ul', { class: 'word-rows' }, list.map((w) => h('li', null, h('a', { href: definitionPath(w.word), lang: 'ctd' }, w.word), w.gloss ? h('span', { class: 'g' }, w.gloss) : null)));
+}
+
+function symbolsNote(q) {
+  return q.symbols ? h('p', { class: 'meta-line' }, 'Symbols were left out; searched for ', qt(q.clean), '.') : null;
+}
+
+/** A single word that is not a headword: nearest spellings, English forms, parts. */
+async function unknownWord(root, q) {
+  const word = q.clean;
+  const [similar, starting, readings] = await Promise.all([data.similar(word, 6), data.suggest(word, 6), data.analyse(word)]);
+  const startingOnly = starting.filter((s) => s.side !== 'english' && !similar.some((x) => x.word === s.word));
   const help = h('div', { class: 'english-help' }, /^[a-z][a-z'-]{2,}$/i.test(word) ? h('p', { class: 'loading-note' }, 'Looking for the English word in other forms…') : null);
+  const nothingYet = !similar.length && !startingOnly.length && !readings.length;
   mount(
     root,
     h(
@@ -132,8 +155,9 @@ async function notFound(root, word) {
       { class: 'page' },
       h(
         'div',
-        { class: 'notice' },
-        h('h1', null, `No entry for “${word}” yet`),
+        { class: 'answer' },
+        h('header', { class: 'answer-head' }, h('p', { class: 'kicker' }, 'Not a headword yet'), h('h1', { lang: 'ctd' }, word), symbolsNote(q)),
+        similar.length ? panel('Did you mean', wordRows(similar)) : null,
         help,
         readings.length
           ? h(
@@ -144,12 +168,9 @@ async function notFound(root, word) {
               h('p', { class: 'build-note' }, 'Worked out from the parts; not checked by a speaker.')
             )
           : null,
-        hits.length
-          ? [h('p', null, 'Words that start the same way'), h('div', { class: 'row' }, hits.map((hit) => h('a', { class: 'chip serif', href: definitionPath(hit.word) }, hit.word)))]
-          : readings.length
-            ? null
-            : h('p', { class: 'zo-reading' }, 'Check the spelling, or try the English word.'),
-        h('div', null, h('a', { class: 'btn', href: `/workspace/entry/new?word=${encodeURIComponent(word)}` }, icon(ICONS.edit), 'Suggest this word'))
+        startingOnly.length ? panel(['Words that start with ', qt(word)], wordChips(startingOnly)) : null,
+        nothingYet ? h('p', { class: 'meta-line zo-reading' }, 'Nothing close to it in the dictionary. Check the spelling, or try the word in English.') : null,
+        h('div', { class: 'answer-actions' }, SUGGEST_LINK(word))
       )
     )
   );
@@ -164,6 +185,118 @@ async function notFound(root, word) {
       help.replaceChildren(h('p', { class: 'loading-note is-error' }, err.message));
     }
   }
+}
+
+/** Several words: each with its meaning, and sentences that contain them. */
+async function phrase(root, q) {
+  const [rows, found] = await Promise.all([data.breakdown(q.words), data.phraseExamples(q.clean)]);
+  const cell = (r) => {
+    if (r.kind === 'zolai' || (r.kind === 'number' && r.word)) return [h('a', { href: definitionPath(r.word), lang: 'ctd', class: 'tok-w' }, r.word), h('span', { class: 'tok-g' }, r.gloss)];
+    if (r.kind === 'english')
+      return [
+        h('span', { class: 'tok-w' }, r.token),
+        h('span', { class: 'tok-g' }, r.root ? ['from ', qt(r.root), ': '] : 'Zolai: ', joinNodes(r.zolai.map((z) => h('a', { href: definitionPath(z.word), lang: 'ctd', title: z.gloss }, z.word))))
+      ];
+    return [
+      h('span', { class: 'tok-w is-unknown', lang: 'ctd' }, r.token),
+      h(
+        'span',
+        { class: 'tok-g' },
+        r.near ? ['not found; maybe ', h('a', { href: definitionPath(r.near.word), lang: 'ctd' }, r.near.word), ` (${r.near.gloss})`] : r.reading ? ['may be ', r.reading.map((p) => p.text).join(' + ')] : 'not in the dictionary yet'
+      )
+    ];
+  };
+  const known = rows.filter((r) => r.kind !== 'unknown').length;
+  mount(
+    root,
+    h(
+      'div',
+      { class: 'page' },
+      h(
+        'div',
+        { class: 'answer' },
+        h(
+          'header',
+          { class: 'answer-head' },
+          h('p', { class: 'kicker' }, q.kind === 'sentence' ? 'A sentence, word by word' : 'A phrase, word by word'),
+          h('h1', { lang: 'ctd', class: 'answer-phrase' }, q.clean),
+          h('p', { class: 'meta-line' }, `${known} of ${rows.length} words found. The phrase as a whole is not an entry yet.`),
+          symbolsNote(q)
+        ),
+        h('ol', { class: 'tokens' }, rows.map((r) => h('li', { class: `tok tok-${r.kind}` }, cell(r)))),
+        found === null
+          ? h('p', { class: 'meta-line' }, 'Download the example sentences in Settings to see where this phrase is used.')
+          : found.length
+            ? panel(['Used in these sentences'], h('ul', { class: 'examples' }, found.map(exampleItem)))
+            : null,
+        h('div', { class: 'answer-actions' }, SUGGEST_LINK(q.clean, 'phrase'))
+      )
+    )
+  );
+}
+
+/** A number: its Zolai words through the English number words. */
+async function number(root, q) {
+  const help = q.value === null ? null : await data.numberHelp(q.value);
+  mount(
+    root,
+    h(
+      'div',
+      { class: 'page' },
+      h(
+        'div',
+        { class: 'answer' },
+        h('header', { class: 'answer-head' }, h('p', { class: 'kicker' }, 'A number'), h('h1', null, q.value === null ? q.text : q.value.toLocaleString()), help?.words ? h('p', { class: 'summary' }, help.words) : null),
+        help
+          ? panel(
+              'Its parts in Zolai',
+              h(
+                'ul',
+                { class: 'word-rows' },
+                help.parts.map((p) =>
+                  h('li', null, h('span', { class: 'tok-w' }, p.english), p.zolai.length ? joinNodes(p.zolai.map((z) => h('a', { href: definitionPath(z.word), lang: 'ctd', title: z.gloss }, z.word))) : h('span', { class: 'g' }, 'no Zolai word yet'))
+                )
+              ),
+              h('p', { class: 'build-note' }, 'Read part by part; how Zolai combines number words is not written out here yet.')
+            )
+          : h('p', { class: 'meta-line' }, 'This number is too long to read out.')
+      )
+    )
+  );
+}
+
+/** Queries the dictionary cannot read: another script, an address, nothing. */
+function outside(root, q) {
+  const body = {
+    script: [
+      'Written in ' + q.script + ' script',
+      `zotune reads Zolai and English, written in Latin letters. ${q.script === 'Myanmar' ? 'Burmese is planned as a further language.' : 'Other languages may come later.'}`
+    ],
+    address: ['A web or email address', 'zotune looks up words. Type a Zolai or English word instead.'],
+    empty: ['Nothing to look up', 'Type a word in Zolai or English.']
+  }[q.kind];
+  mount(
+    root,
+    h(
+      'div',
+      { class: 'page' },
+      h(
+        'div',
+        { class: 'answer' },
+        h('header', { class: 'answer-head' }, h('p', { class: 'kicker' }, body[0]), h('h1', null, q.text || '—')),
+        h('p', null, body[1]),
+        h('div', { class: 'row' }, h('span', { class: 'meta-line' }, 'Try'), ['itna', 'lungdamna', 'love'].map((w) => h('a', { class: 'chip', href: definitionPath(w) }, w)))
+      )
+    )
+  );
+}
+
+/** Everything that is not a headword gets an answer of its own kind. */
+async function answer(root, q) {
+  if (q.kind === 'script' || q.kind === 'address' || q.kind === 'empty') return outside(root, q);
+  if (q.kind === 'number') return number(root, q);
+  if (q.kind === 'phrase' || q.kind === 'sentence') return phrase(root, q);
+  return unknownWord(root, q);
 }
 
 /* ---------- Entry ---------- */
@@ -436,12 +569,13 @@ export default {
       return null;
     }
     mount(root, h('div', { class: 'page' }, loadingNote()));
-    const entry = await data.resolve(word);
+    const q = classify(word);
+    const entry = q.clean ? await data.resolve(q.clean) : null;
     if (!entry) {
-      await notFound(root, word);
+      await answer(root, q);
       return null;
     }
-    await showEntry(root, entry, word);
+    await showEntry(root, entry, q.clean);
     rememberWord(entry.word, entry.senses[0]?.terms.join(', ') || '');
 
     // Hidden navigation: [ and ] step through headwords.
