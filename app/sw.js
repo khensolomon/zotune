@@ -20,6 +20,8 @@ const SHELL = [
   '/js/actions.js',
   '/js/search-index.js',
   '/js/cite.js',
+  '/js/logo.js',
+  '/js/theme.js',
   '/js/components/loading.js',
   '/data/source.json',
   '/data/books.json',

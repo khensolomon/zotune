@@ -13,6 +13,9 @@ const EXAMPLES = [
 const MAX_VERSES = 6;
 const MORE_STEP = 10;
 
+/** A quoted word, set darker than the text around it. */
+const qt = (text) => h('span', { class: 'qt' }, `“${text}”`);
+
 const capital = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const plural = (n, one, many) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
@@ -90,7 +93,7 @@ function rootsBlock(word, result) {
   return h(
     'section',
     { class: 'roots' },
-    h('h2', null, `“${word}” in other forms`),
+    h('h2', null, qt(word), ' in other forms'),
     useful.map((r) =>
       h(
         'div',
@@ -320,7 +323,7 @@ function englishBlock(query, matches, current) {
   return h(
     'section',
     { class: 'english-list' },
-    h('h2', null, `Zolai words for “${query}”`),
+    h('h2', null, 'Zolai words for ', qt(query)),
     h(
       'ul',
       null,
@@ -381,8 +384,8 @@ async function showEntry(root, entry, query) {
           h(
             'header',
             { class: 'entry-head' },
-            entry.redirectFrom.length ? h('p', { class: 'meta-line' }, `“${entry.redirectFrom.join(', ')}” is written as`) : null,
-            entry.via ? h('p', { class: 'meta-line' }, `Nothing for “${entry.via.from}”; showing the Zolai for “${entry.via.to}”`) : null,
+            entry.redirectFrom.length ? h('p', { class: 'meta-line' }, qt(entry.redirectFrom.join(', ')), ' is written as') : null,
+            entry.via ? h('p', { class: 'meta-line' }, 'Nothing for ', qt(entry.via.from), '; showing the Zolai for ', qt(entry.via.to)) : null,
             h(
               'div',
               { class: 'headline' },

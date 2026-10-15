@@ -14,6 +14,26 @@ function markList(items, emptyText) {
   return h('ul', { class: 'list' }, items.map((m) => h('li', null, h('a', { class: 'w', href: definitionPath(m.word) }, m.word), h('span', { class: 'm' }, new Date(m.at).toLocaleDateString()))));
 }
 
+const THEMES = [
+  ['auto', 'Auto'],
+  ['light', 'Light'],
+  ['dark', 'Dark']
+];
+
+function themeChooser() {
+  const control = window.zotuneTheme;
+  if (!control) return h('p', { class: 'empty' }, 'Theme control is not available.');
+  const buttons = THEMES.map(([value, label]) => {
+    const b = h('button', { type: 'button', 'aria-pressed': String(control.get() === value) }, label);
+    b.addEventListener('click', () => {
+      control.set(value);
+      buttons.forEach((x, i) => x.setAttribute('aria-pressed', String(THEMES[i][0] === value)));
+    });
+    return b;
+  });
+  return h('div', null, h('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' }, buttons), h('p', { class: 'meta-line' }, 'Auto follows the setting of this device.'));
+}
+
 export default {
   nav: null,
   layout: 'page',
@@ -31,6 +51,8 @@ export default {
             { class: 'doc' },
             h('h1', null, 'You'),
             h('p', null, 'You are using zotune as a guest. Everything below is saved on this device.'),
+            h('h2', null, 'Appearance'),
+            themeChooser(),
             h('h2', null, 'Bookmarks'),
             markList(bookmarks, 'Nothing bookmarked yet.'),
             h('h2', null, 'Liked'),

@@ -122,7 +122,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
           },
           h('span', { class: 'w' }, hit.word),
           h('span', { class: 'g' }, hit.gloss),
-          hit.side === 'english' ? h('span', { class: 'side' }, `“${hit.matched}”`) : null
+          hit.side === 'english' ? h('span', { class: 'side' }, h('span', { class: 'qt' }, `“${hit.matched}”`)) : null
         )
       )
     );

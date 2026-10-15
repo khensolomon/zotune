@@ -2,6 +2,7 @@ import { h, mount } from '../dom.js';
 import { searchField } from '../components/search-field.js';
 import { definitionPath } from '../router.js';
 import { loadingNote } from '../components/loading.js';
+import { logo } from '../logo.js';
 
 const TRY = ['itna', 'lungdamna', 'love'];
 
@@ -21,7 +22,7 @@ export default {
           'div',
           { class: 'home-brand' },
           h('h1', { class: 'visually-hidden' }, 'zotune'),
-          h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 495, height: 64 }),
+          logo(48),
           h('p', { class: 'tagline' }, 'Zo kammal — every Zolai word, in English')
         ),
         h(

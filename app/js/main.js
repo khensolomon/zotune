@@ -2,6 +2,7 @@
 
 import { route, start, match, navigate } from './router.js';
 import { h, mount } from './dom.js';
+import { logo } from './logo.js';
 import { createHeader } from './components/header.js';
 import { searchField, clearDim } from './components/search-field.js';
 import home from './views/home.js';
@@ -37,7 +38,7 @@ function showBar(value, { hint = false, cycle = false } = {}) {
     h(
       'div',
       { class: 'searchbar-row' },
-      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 232, height: 30 })),
+      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, logo(30)),
       barField.el
     )
   );
