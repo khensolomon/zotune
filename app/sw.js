@@ -21,6 +21,7 @@ const SHELL = [
   '/js/search-index.js',
   '/js/cite.js',
   '/js/logo.js',
+  '/js/recent.js',
   '/js/theme.js',
   '/js/components/loading.js',
   '/data/source.json',

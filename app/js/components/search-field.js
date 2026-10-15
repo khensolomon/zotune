@@ -4,9 +4,15 @@
 import { h, icon, ICONS } from '../dom.js';
 import { data } from '../search-client.js';
 import { navigate, definitionPath } from '../router.js';
+import { recentWords } from '../recent.js';
 
 const PLACEHOLDER = 'A word in Zolai or English';
 const CYCLE = ['Try “itna”…', 'Try “love”…', 'Try “lungdamna”…', PLACEHOLDER];
+const STARTERS = [
+  { word: 'itna', gloss: 'love, affection' },
+  { word: 'lungdamna', gloss: 'joy, gladness' },
+  { word: 'love', gloss: 'English works too' }
+];
 
 let uid = 0;
 
@@ -95,7 +101,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
 
   function highlight(i) {
     active = i;
-    [...list.children].forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
+    list.querySelectorAll('[role="option"]').forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
     if (i >= 0) input.setAttribute('aria-activedescendant', `${id}-o${i}`);
     else input.removeAttribute('aria-activedescendant');
   }
@@ -107,10 +113,13 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     navigate(q ? definitionPath(q) : '/definition');
   }
 
+  /** Shows options; an item with a `group` starts a labelled group. */
   function show(items) {
     hits = items;
-    list.replaceChildren(
-      ...items.map((hit, i) =>
+    const rows = [];
+    items.forEach((hit, i) => {
+      if (hit.group) rows.push(h('li', { class: 'group', role: 'presentation' }, hit.group));
+      rows.push(
         h(
           'li',
           {
@@ -124,8 +133,9 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
           h('span', { class: 'g' }, hit.gloss),
           hit.side === 'english' ? h('span', { class: 'side' }, h('span', { class: 'qt' }, `“${hit.matched}”`)) : null
         )
-      )
-    );
+      );
+    });
+    list.replaceChildren(...rows);
     const open = items.length > 0 && document.activeElement === input;
     list.hidden = !open;
     form.classList.toggle('is-open', open);
@@ -134,9 +144,34 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     updateDim();
   }
 
+  /** What the list offers before anything is typed: recent words, then starters. */
+  function showStart() {
+    const recent = recentWords().slice(0, 5);
+    const seen = new Set(recent.map((r) => r.word));
+    const starters = STARTERS.filter((r) => !seen.has(r.word));
+    show([
+      ...recent.map((r, i) => ({ ...r, group: i === 0 ? 'Recent' : null })),
+      ...starters.map((r, i) => ({ ...r, group: i === 0 ? (recent.length ? 'Try' : 'Try one of these') : null }))
+    ]);
+  }
+
+  async function suggestFor(q) {
+    const mine = ++ticket;
+    try {
+      const items = await data.suggest(q, 8);
+      if (mine !== ticket) return;
+      if (items.length) show(items);
+      else show([{ word: q.trim(), gloss: 'Search for this', group: 'No word starts like this' }]);
+    } catch (err) {
+      console.error('zotune: suggestions failed:', err.message);
+    }
+  }
+
   input.addEventListener('pointerdown', () => {
+    const already = document.activeElement === input;
     chosen = true;
-    if (document.activeElement === input) updateDim();
+    if (already && list.hidden) openList();
+    updateDim();
   });
   input.addEventListener('input', () => {
     chosen = true;
@@ -144,21 +179,19 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     clearTimeout(timer);
     const q = input.value;
     if (!q.trim()) {
-      show([]);
+      showStart();
       return;
     }
-    timer = setTimeout(async () => {
-      const mine = ++ticket;
-      try {
-        const items = await data.suggest(q, 8);
-        if (mine === ticket) show(items);
-      } catch (err) {
-        console.error('zotune: suggestions failed:', err.message);
-      }
-    }, 70);
+    timer = setTimeout(() => suggestFor(q), 70);
   });
 
   input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && list.hidden) {
+      e.preventDefault();
+      chosen = true;
+      openList();
+      return;
+    }
     if (e.key === 'ArrowDown' && hits.length) {
       e.preventDefault();
       if (list.hidden) show(hits);
@@ -167,8 +200,10 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
       e.preventDefault();
       highlight(active <= 0 ? hits.length - 1 : active - 1);
     } else if (e.key === 'Escape') {
-      if (!list.hidden) close();
-      else input.blur();
+      if (!list.hidden) {
+        chosen = false;
+        close();
+      } else input.blur();
     }
   });
 
@@ -178,8 +213,16 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
       close();
     }, 0)
   );
+  // The list opens with something in it whenever the person is in the box,
+  // so the highlighted box never shows an empty list.
+  const openList = () => {
+    if (!chosen || document.activeElement !== input) return;
+    if (!input.value.trim()) showStart();
+    else if (hits.length && !hits[0].group) show(hits);
+    else suggestFor(input.value);
+  };
   input.addEventListener('focus', () => {
-    if (hits.length && input.value.trim()) show(hits);
+    openList();
     updateDim();
   });
 
@@ -208,6 +251,7 @@ export function searchField({ size = 'md', value = '', hint = false, cycle = fal
     focus: ({ chosen: byPerson = false } = {}) => {
       chosen = byPerson;
       input.focus();
+      openList();
       updateDim();
     }
   };

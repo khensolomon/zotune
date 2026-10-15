@@ -4,6 +4,7 @@ import { definitionPath, navigate } from '../router.js';
 import { markedParts, matchKey } from '../text.js';
 import { loadingNote } from '../components/loading.js';
 import * as actions from '../actions.js';
+import { rememberWord } from '../recent.js';
 
 const EXAMPLES = [
   { k: 'A Zolai word', w: 'itna', g: 'love, affection' },
@@ -441,6 +442,7 @@ export default {
       return null;
     }
     await showEntry(root, entry, word);
+    rememberWord(entry.word, entry.senses[0]?.terms.join(', ') || '');
 
     // Hidden navigation: [ and ] step through headwords.
     const { prev, next } = await data.neighbours(entry.id);
