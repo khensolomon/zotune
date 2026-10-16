@@ -2,13 +2,13 @@
 
 import { route, start, match, navigate } from './router.js';
 import { h, mount } from './dom.js';
+import { logo } from './logo.js';
 import { createHeader } from './components/header.js';
-import { searchField } from './components/search-field.js';
+import { searchField, clearDim } from './components/search-field.js';
 import home from './views/home.js';
 import definition from './views/definition.js';
 import about from './views/about.js';
-import me from './views/me.js';
-import workspace from './views/workspace.js';
+import settings from './views/settings.js';
 import editor from './views/editor.js';
 import notFound from './views/not-found.js';
 
@@ -24,8 +24,11 @@ route('/', home);
 route('/definition', definition);
 route('/definition/:word', definition);
 route('/about', about);
-route('/me', me);
-route('/workspace', workspace);
+route('/settings', settings);
+// Earlier addresses of the parts that Settings now holds.
+const moved = (to) => ({ nav: null, layout: 'page', title: 'Settings', render: () => navigate(to, { replace: true }) });
+route('/me', moved('/settings#words'));
+route('/workspace', moved('/settings#data'));
 route('/workspace/entry/:id', editor);
 
 // Pinned logo + search bar for definition pages.
@@ -37,7 +40,7 @@ function showBar(value, { hint = false, cycle = false } = {}) {
     h(
       'div',
       { class: 'searchbar-row' },
-      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, h('img', { src: '/assets/logo.svg', alt: 'zotune', width: 122, height: 33 })),
+      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, logo(30)),
       barField.el
     )
   );
@@ -56,6 +59,7 @@ async function render({ path }) {
   const v = found?.view ?? notFound;
   const params = found?.params ?? {};
 
+  clearDim();
   if (typeof cleanup === 'function') cleanup();
   cleanup = null;
   homeField = null;
@@ -109,7 +113,7 @@ document.addEventListener('keydown', (e) => {
   const f = barField ?? homeField;
   if (!f) return;
   e.preventDefault();
-  f.focus();
+  f.focus({ chosen: true });
 });
 
 // Deep links from the operating system (desktop shell only).

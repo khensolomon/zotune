@@ -1,16 +1,24 @@
 // IndexedDB wrapper shared by the window and the workers.
 
 const DB_NAME = 'zotune';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let opening = null;
 
+const STORES = {
+  meta: { keyPath: 'name' },
+  files: { keyPath: ['ref', 'path'] },
+  marks: { keyPath: ['kind', 'entryId'] },
+  votes: { keyPath: ['kind', 'senseId'] },
+  outbox: { keyPath: 'id', autoIncrement: true }
+};
+
 function upgrade(db) {
-  db.createObjectStore('meta', { keyPath: 'name' });
-  db.createObjectStore('entries', { keyPath: 'id' });
-  db.createObjectStore('marks', { keyPath: ['kind', 'entryId'] });
-  db.createObjectStore('votes', { keyPath: ['kind', 'senseId'] });
-  db.createObjectStore('outbox', { keyPath: 'id', autoIncrement: true });
+  for (const [name, options] of Object.entries(STORES)) {
+    if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, options);
+  }
+  // Version 1 kept a sample pack of entries; the tables replace it.
+  if (db.objectStoreNames.contains('entries')) db.deleteObjectStore('entries');
 }
 
 function wrap(request, what) {
@@ -59,9 +67,16 @@ async function run(storeName, mode, fn) {
 export const get = (store, key) => run(store, 'readonly', (s) => s.get(key));
 export const getAll = (store) => run(store, 'readonly', (s) => s.getAll());
 export const count = (store) => run(store, 'readonly', (s) => s.count());
+export const keys = (store) => run(store, 'readonly', (s) => s.getAllKeys());
 export const put = (store, value) => run(store, 'readwrite', (s) => s.put(value));
 export const del = (store, key) => run(store, 'readwrite', (s) => s.delete(key));
 export const clear = (store) => run(store, 'readwrite', (s) => s.clear());
+
+/** Deletes many keys in one transaction. */
+export const delMany = (store, list) =>
+  run(store, 'readwrite', (s) => {
+    for (const k of list) s.delete(k);
+  });
 
 /** Writes many records in one transaction. */
 export const putMany = (store, values) =>

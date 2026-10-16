@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { matchKey, markedParts } from '../app/js/text.js';
 import { buildIndex, search, resolve, neighbours } from '../app/js/search-index.js';
@@ -8,7 +7,13 @@ import { route, match } from '../app/js/router.js';
 
 const require = createRequire(import.meta.url);
 const { deepLinkPath } = require('../desktop/links.js');
-const pack = JSON.parse(readFileSync(new URL('../app/data/sample.json', import.meta.url), 'utf8'));
+
+const docs = [
+  { id: 'w1', word: 'it', gloss: 'love', keys: [['it', 'word', 0], ['love', 'english', 0]] },
+  { id: 'w2', word: 'itna', gloss: 'love, affection', keys: [['itna', 'word', 0], ['it na', 'spelling', 0], ['love', 'english', 0.1], ['affection', 'english', 0.2]] },
+  { id: 'w5', word: 'Pasian', gloss: 'God', keys: [['Pasian', 'word', 0], ['God', 'english', 0]] },
+  { id: 'w6', word: 'pasian', gloss: 'worship', keys: [['pasian', 'word', 0]] }
+];
 
 test('matchKey joins split and hyphenated spellings', () => {
   assert.equal(matchKey('amaute'), 'amaute');
@@ -19,7 +24,7 @@ test('matchKey joins split and hyphenated spellings', () => {
   assert.equal(matchKey(''), '');
 });
 
-test('markedParts separates Zolai marks and links', () => {
+test('markedParts separates Zolai mentions and links', () => {
   assert.deepEqual(markedParts('from <it>, and {na} here'), [
     { kind: 'text', text: 'from ' },
     { kind: 'link', text: 'it' },
@@ -27,27 +32,11 @@ test('markedParts separates Zolai marks and links', () => {
     { kind: 'zo', text: 'na' },
     { kind: 'text', text: ' here' }
   ]);
-  assert.deepEqual(
-    markedParts('<a/b>').map((p) => p.text),
-    ['a', '/', 'b']
-  );
-});
-
-test('sample pack is well formed with unique ids', () => {
-  const ids = new Set();
-  for (const e of pack.entries) {
-    assert.ok(e.id && e.word && Array.isArray(e.senses), `entry ${e.id}`);
-    assert.ok(!ids.has(e.id), `duplicate entry id ${e.id}`);
-    ids.add(e.id);
-    for (const s of e.senses) {
-      assert.ok(!ids.has(s.id), `duplicate sense id ${s.id}`);
-      ids.add(s.id);
-    }
-  }
+  assert.deepEqual(markedParts('<a/b>').map((p) => p.text), ['a', '/', 'b']);
 });
 
 test('search finds Zolai, spellings and English from one input', () => {
-  const index = buildIndex(pack.entries);
+  const index = buildIndex(docs);
   assert.equal(search(index, 'itna')[0].word, 'itna');
   assert.equal(search(index, 'it na')[0].word, 'itna');
   assert.equal(search(index, 'IT-NA')[0].word, 'itna');
@@ -59,19 +48,22 @@ test('search finds Zolai, spellings and English from one input', () => {
 });
 
 test('exact headword outranks a longer prefix match', () => {
-  const index = buildIndex(pack.entries);
-  const hits = search(index, 'it');
+  const hits = search(buildIndex(docs), 'it');
   assert.equal(hits[0].word, 'it');
   assert.ok(hits.some((h) => h.word === 'itna'));
 });
 
-test('resolve and neighbours', () => {
-  const index = buildIndex(pack.entries);
-  assert.equal(resolve(index, 'hatred').word, 'huatna');
+test('resolve prefers the spelling with the same case', () => {
+  const index = buildIndex(docs);
+  assert.equal(resolve(index, 'Pasian'), 'w5');
+  assert.equal(resolve(index, 'pasian'), 'w6');
   assert.equal(resolve(index, 'nothing like this'), null);
-  const n = neighbours(index, 'w1');
+});
+
+test('neighbours follow alphabetical order', () => {
+  const n = neighbours(buildIndex(docs), 'w2');
   assert.equal(n.prev, 'it');
-  assert.equal(n.next, 'lungdamna');
+  assert.ok(['Pasian', 'pasian'].includes(n.next));
 });
 
 test('router matches deep links', () => {

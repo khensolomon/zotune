@@ -30,10 +30,12 @@ app/                    the SPA (served as-is, no build step)
   js/search-client.js   promise-based RPC to the search worker
   js/actions.js         bookmark, like, helpful/correct votes, proposals → outbox
   js/text.js            Zolai/English normalisation (shared by window and workers)
+  js/cite.js            reader for the dictionary tables (shared, unit-tested)
   js/workers/           background workers (dataset load, indexing, search)
   js/views/             one module per route
   js/components/        header, search field, footer, window controls
-  data/sample.json      provisional sample dataset (see "Dataset pack")
+  data/source.json      which version of the dictionary tables to read
+  data/books.json       Bible book names for verse references
   sw.js                 service worker (web only)
 desktop/                Electron main and preload
 scripts/serve.mjs       development server with SPA fallback
@@ -56,8 +58,7 @@ Routes are real paths handled by the History API:
 | `/definition` | Definition page with no query (how-to help) |
 | `/definition/{word}` | Definition of a word (`{word}` is URL-encoded) |
 | `/about` | About |
-| `/me` | Bookmarks, likes and pending changes on this device |
-| `/workspace` | Dataset management |
+| `/settings` | Appearance, bookmarks and likes, the dictionary on this device, suggestions and pending changes (`/me` and `/workspace` lead here) |
 | `/workspace/entry/{id}` | Proposal editor for one entry |
 
 - Web: the host serves `index.html` for any path without a file extension
@@ -73,17 +74,19 @@ Routes are real paths handled by the History API:
 
 ### Background work
 
-The dataset is owned by a module worker (`js/workers/data.worker.js`):
+The dictionary is owned by a module worker (`js/workers/data.worker.js`):
 
-1. On start it opens IndexedDB and compares the stored pack version with the
-   available one.
-2. If newer, it downloads the pack, writes entries in batches, and rebuilds the
-   search index, all off the main thread.
-3. It answers `search`, `suggest`, `entry` and `neighbours` requests.
+1. On start it reads `data/source.json` to learn which version of the tables to
+   use, then loads each table of the active tier from IndexedDB, or downloads it
+   when that version is not stored yet.
+2. It parses the tables, assembles the model and builds the search index, all off
+   the main thread.
+3. It answers `suggest`, `resolve`, `entry`, `neighbours`, `info` and
+   `downloadExamples` requests.
 
 The window talks to it through `search-client.js` (request ids + promises). The UI
-never blocks on parsing or indexing. Status (`loading`, `ready`, `offline`) is
-broadcast to the header indicator.
+never blocks on downloading, parsing or indexing. Status (`loading` with progress,
+`ready`, `error`) is broadcast to the header indicator.
 
 Dedicated workers are used rather than `SharedWorker`, which is unreliable on
 Android browsers. Several tabs each run their own worker against the same
@@ -98,8 +101,39 @@ IndexedDB database.
   removed, curly quotes folded. Hyphens and spaces are removed for the matching
   key, so `amaute`, `amau te` and `amau-te` find the same rows while the data keeps
   the written form.
-- Index: sorted array of `[key, entryId]` pairs with binary-search prefix lookup.
-  Exact matches rank first, then headword prefix, then English gloss.
+- Index: sorted array of `[key, wordId, side, text]` with binary-search prefix
+  lookup. Exact matches rank first, then headword, variant spelling, English term.
+- Spellings that differ only in capitals are one result when they mean the
+  same: they share an English term written alike, and neither is only a name
+  (`dawimangpa` and `Dawimangpa`; 408 such spellings in October 2026). The word
+  is shown under the spelling with the fewest capitals, with the other spellings
+  under "Also written", and their meanings together without repeats.
+- Spellings that differ only in capitals and mean different things stay apart
+  and point at each other: `Pasian` (God) and `pasian` (god), `Adah` (a name)
+  and `adah` (addled egg). A query written exactly like one of them opens that
+  one; otherwise matching ignores case.
+- English irregular forms (`lang/eng/form`) reduce a query such as `ran` to `run`
+  when nothing matches the form itself.
+
+### Kinds of query
+
+`js/query.js` reads a query before any lookup and each kind gets its own page,
+so no search ends in a bare "not found":
+
+| Kind | Answer |
+| --- | --- |
+| Word that is a headword (or an English term, or an English form of one) | The entry |
+| Word that is not | Nearest spellings (edit distance 1–2), English forms and WordNet meanings, readings of its parts, words that start the same way, and a way to suggest it |
+| Phrase (2–4 words) or sentence | Each word with its meaning, and sentences from the examples that contain it |
+| Number | Its English number words and their Zolai |
+| Another script (Myanmar, Devanagari, …) | What the dictionary reads, and that other languages are planned |
+| Web or email address | A short explanation |
+| Symbols | Left out, and the page says so |
+
+The empty definition page is a guide: a word of the day, ways to search with
+live examples taken from the data, recent words for a returning reader, and one
+draft meaning to check. Words of the day are reviewed, native-looking words (no
+loanword origin, none of the letters j, q, r, x, y), chosen by date.
 
 ### Persistent storage
 
@@ -107,8 +141,8 @@ IndexedDB database `zotune`, version 1:
 
 | Store | Key | Holds |
 | --- | --- | --- |
-| `meta` | name | pack version, index build time |
-| `entries` | `id` | dictionary entries from the pack |
+| `meta` | name | active table version, downloaded tiers |
+| `files` | `[ref, path]` | table files as downloaded, one row per version and file |
 | `marks` | `[kind, entryId]` | bookmarks and likes (`kind` = `bookmark`, `like`) |
 | `votes` | `[kind, senseId]` | helpful / correct votes (`yes`, `no`) |
 | `outbox` | auto id | actions waiting to be sent to the server |
@@ -159,7 +193,7 @@ Plain CSS with custom properties. Rules carried over from the approved mockups:
 | Host the web app | Pages (zotune.com) |
 | API (votes, likes, proposals, auth) | Workers (`api.zotune.com`) |
 | Relational data: users, votes, proposals, review state | D1 |
-| Dataset packs, email attachments, exports | R2 |
+| Mirror of the dictionary tables per version, email attachments, exports | R2 |
 | Rate-limit counters, feature flags | KV, or Durable Objects where counts must be exact |
 | Bot check without puzzles | Turnstile (invisible / managed) |
 | Contributions by email | Email Routing → Email Worker |
@@ -184,11 +218,12 @@ Three ways in, one pipeline:
 Core scripts (Python, stdlib only, dry run by default, `--apply` to commit):
 
 - `inbox fetch`: pull pending items from R2/D1 into a local inbox folder.
-- `inbox parse`: turn emails, patches and Markdown into the dataset's raw row
-  format, reporting every line that cannot be parsed (fail fast, no guessing).
+- `inbox parse`: turn emails, patches and Markdown into cite markup (the
+  `.cite` rows described under "Markup" in `Format.md`), reporting every line that
+  cannot be parsed (fail fast, no guessing).
 - `inbox check`: validate against the dataset rules, detect duplicates and spelling
   variants, and show a diff against current data.
-- `inbox accept`: hand accepted rows to the dataset's import tool and mark the items
+- `inbox accept`: hand accepted rows to `python3 -m assist cite import` and mark the items
   done on the server.
 
 These scripts sit next to the dataset tooling, so a contribution ends up in the
@@ -225,39 +260,94 @@ Trust grows with behaviour. There is no sign-up form or password.
   instructions are flagged for a reviewer.
 - Honeypot fields and minimum time-to-submit on forms catch simple scripts.
 
-## Dataset pack
+## Dictionary data
 
-`app/data/sample.json` is a hand-written sample with the shape the UI needs:
+Decision: the app reads the dictionary tables of `laisiangtho/bible/cite`
+directly, in the format described by its `Format.md` and `configuration.json`.
+There is no separate release file and no export step.
 
-```json
-{
-  "version": "sample-1",
-  "entries": [
-    {
-      "id": "w1", "word": "itna", "syllables": "it·na",
-      "spellings": ["it na"], "origin": "from {it}, to love, and {-na}, making a noun",
-      "status": "draft", "english": ["love", "affection", "charity"],
-      "senses": [
-        { "id": "s1", "pos": "noun", "gloss": "love; affection", "definition": "…",
-          "examples": [{ "zo": "…", "en": "…", "ref": "…" }],
-          "similar": ["deihna"], "opposite": ["huatna"] }
-      ]
-    }
-  ]
-}
-```
+### Versions
 
-The real pack will be built from the format 3 dictionary tables in the catalog
-repository. The pack builder belongs with that tooling and is a separate piece of
-work once the format 3 release file is fixed.
+- The app never reads the tables on `master`. `app/data/source.json` names a
+  version: a commit id or a tag of the data repository. Changing that file is how
+  a new version of the dictionary reaches readers.
+- Files are fetched from `base` in `source.json`: GitHub's raw file host at that
+  commit (`raw.githubusercontent.com/laisiangtho/bible/{ref}/cite/`), whose URL
+  contains the version and is therefore immutable. jsDelivr's GitHub mirror was
+  tried first and refused the larger tables (from `sense.tsv`, 2.8 MB, upwards).
+  The Cloudflare back end can take over the same role later (R2 behind
+  `zotune.com`) without changing the reader.
+- `configuration.json` of that version acts as the manifest. Its `version` must
+  equal `format` in `source.json`; any other value stops the app with a message
+  naming both numbers. A table whose header differs from the columns listed in the
+  configuration stops the app the same way. Nothing is guessed.
+- Downloaded files are stored per version. A new version is activated only after
+  all files of its tier are stored and parsed; until then the previous version
+  stays in use, also offline. Older versions are deleted after a successful switch.
+
+### Tiers
+
+Compressed sizes as measured on the tables in October 2026:
+
+| Tier | Tables | Download | Loaded |
+| --- | --- | --- | --- |
+| Core | `configuration.json`, `word`, `sense`, `relation`, `lang/eng/gloss`, `lang/eng/link`, `lang/eng/form` | ≈ 3.5 MB | On first open, every device |
+| Examples | `usage`, `example`, `lang/eng/translation` | ≈ 6–7 MB | Desktop: at once. Web: on request (Workspace), later per word from the back end |
+| English lexicon | `lang/eng/concept`, `lang/eng/sense`, `lang/eng/relation`, `lang/eng/equivalent` | ≈ 4.5 MB | Desktop: at once. Web: the first time an English word is not found |
+
+- The core tier gives offline search and every meaning on any phone.
+- Example sentences on the web: until the back end exists, a reader can download
+  the examples tier from the Workspace. With the back end, a Worker reads the same
+  tables at the same version and returns the examples of one word; the app keeps
+  what it has shown. Offline, examples are then available for the words opened
+  before.
+- What readers never see is dropped while parsing: retired words and senses, and
+  editor notes (`note.tsv` is not downloaded).
+
+### English words in other forms
+
+An English query that matches no term is reduced before anything else is
+tried: irregular forms (`lang/eng/form`, `ran` → `run`), then regular endings in
+up to two steps (`lovings` → `loving` → `love`, `activities` → `activity` →
+`active`). With the English lexicon loaded, shorter words it derives from are
+added (`creatures` → `creature` → `create`). The first root with a Zolai term
+opens; the page says which root was used. When no root has a Zolai term, the
+page lists the roots with their WordNet meanings and the Zolai senses linked to
+those meanings through `lang/eng/equivalent`.
+
+### Measured cost and follow-ups
+
+On a desktop CPU the core tier parses and indexes in about 1.3 s and keeps about
+100 MB in the worker (model 80 MB, index 20 MB). Phones will be slower. The work
+is repeated on every cold start because only the table files are stored.
+
+Follow-ups, to be measured on a low-end Android phone first:
+
+- Store the built index (and model) in IndexedDB per version, so a cold start
+  reads it back instead of rebuilding.
+- Keep the table text plus row offsets and decode rows on demand, which would
+  bring the model well under 30 MB.
+
+### Mapping to the screen
+
+| Screen | Table and column |
+| --- | --- |
+| Headword | `word.spelling` |
+| Kind of word | `sense.type`, named by `configuration.json` `type` |
+| Meaning | `lang/eng/gloss.terms` (as the gloss) and `definition` (as prose) |
+| Remark | `lang/eng/gloss.text` |
+| Similar, opposite, built from, joins, also written, grades | `relation.kind` `s`, `a`, `b`, `j`, `v`, `g` |
+| Part of (redirect) | `relation.kind` `see` from the word |
+| Status | `sense.status`, named by `configuration.json` `status.sense` |
+| Found in | `sense.source`: Bible verses by book name (`data/books.json`), other sources by their name in `configuration.json` |
+| Examples | `usage` → `example.text` with the keyword marked by word position, and `lang/eng/translation.text` |
+| Links in prose | `<word>` and `<word.n>` become links; `{text}` is shown as Zolai |
 
 ## Open decisions
 
-1. Pack source: build the app pack from the format 3 tables directly, or from the
-   planned release file for applications.
-2. Contributor identity: passkeys only, email link only, or both.
-3. Vote outcome: how many trusted "correct" votes move a sense from draft to
+1. Contributor identity: passkeys only, email link only, or both.
+2. Vote outcome: how many trusted "correct" votes move a sense from draft to
    reviewed, and whether a single "no" from a reviewer overrides them.
-4. Email contributions: one public address, or per-contributor addresses.
-5. Desktop distribution: unsigned builds for a small group of checkers first, or
+3. Email contributions: one public address, or per-contributor addresses.
+4. Desktop distribution: unsigned builds for a small group of checkers first, or
    signed installers from the start.
