@@ -1,0 +1,10 @@
+// Cloudflare deployment: the app is static files in app/. Addresses that are
+// not files (such as /definition/itna) get index.html, and the router in the app shows the page.
+{
+  "name": "zotune",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./app",
+    "not_found_handling": "single-page-application"
+  }
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { matchKey, markedParts } from '../app/js/text.js';
 import { buildIndex, search, resolve, neighbours } from '../app/js/search-index.js';
-import { route, match } from '../app/js/router.js';
+import { route, match, hashPath } from '../app/js/router.js';
 
 const require = createRequire(import.meta.url);
 const { deepLinkPath } = require('../desktop/links.js');
@@ -80,4 +80,16 @@ test('desktop deep links map to app paths', () => {
   assert.equal(deepLinkPath('zotune://about/'), '/about');
   assert.equal(deepLinkPath('https://example.com/'), null);
   assert.equal(deepLinkPath('not a url'), null);
+});
+
+test('hash addresses become plain paths; anchors are left alone', () => {
+  const o = 'https://zotune.com';
+  assert.equal(hashPath('#/definition/itna', o), '/definition/itna');
+  assert.equal(hashPath('#/definition/ITNA', o), '/definition/ITNA');
+  assert.equal(hashPath('#/settings#words', o), '/settings#words');
+  assert.equal(hashPath('#/definition/in%20na', o), '/definition/in%20na');
+  assert.equal(hashPath('#/', o), '/');
+  assert.equal(hashPath('#words', o), null);
+  assert.equal(hashPath('', o), null);
+  assert.equal(hashPath('#//evil.example/x', o), null);
 });

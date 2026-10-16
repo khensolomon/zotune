@@ -61,8 +61,14 @@ Routes are real paths handled by the History API:
 | `/settings` | Appearance, bookmarks and likes, the dictionary on this device, suggestions and pending changes (`/me` and `/workspace` lead here) |
 | `/workspace/entry/{id}` | Proposal editor for one entry |
 
-- Web: the host serves `index.html` for any path without a file extension
-  (Cloudflare Pages does this by default; `scripts/serve.mjs` does the same).
+- Web: the host serves `index.html` for any path that is not a file. On
+  Cloudflare, `wrangler.jsonc` sets this (`not_found_handling:
+  "single-page-application"`); without it a Worker answers `/definition/itna`
+  with 404 while `/` still works. `scripts/serve.mjs` does the same locally.
+- Hash form: `/#/definition/itna` is rewritten to `/definition/itna` before the
+  first render, and again when such a hash is typed later, so both forms always
+  open the same page, even on a host without the fallback. A hash without the
+  leading slash (`/settings#words`) is an in-page anchor and is left alone.
 - Desktop: the window loads `app://zotune/…` from a privileged custom scheme
   whose handler applies the same fallback, so paths and `pushState` work exactly as
   on the web. `file://` is not used because it breaks absolute paths and module

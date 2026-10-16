@@ -51,6 +51,18 @@ export function navigate(path, { replace = false } = {}) {
   handler(current());
 }
 
+/**
+ * Reads an address written after `#/` (as in `/#/definition/itna`) and returns
+ * it as a path, or null when the hash is not an address. Hashes without the
+ * leading slash, such as `#words`, are in-page anchors and stay as they are.
+ */
+export function hashPath(hash, origin = 'https://zotune.invalid') {
+  if (!hash.startsWith('#/') || hash.startsWith('#//')) return null;
+  const url = new URL(hash.slice(1), origin);
+  if (url.origin !== origin) return null;
+  return url.pathname + url.search + url.hash;
+}
+
 export const definitionPath = (word) => `/definition/${encodeURIComponent(word)}`;
 
 export function start(onRoute) {
@@ -67,5 +79,17 @@ export function start(onRoute) {
     event.preventDefault();
     navigate(url.pathname + url.search + url.hash);
   });
+  // `/#/definition/itna` and `/definition/itna` open the same page: the hash
+  // form is rewritten to the plain address before anything is shown.
+  const fromHash = () => {
+    const path = hashPath(location.hash, location.origin);
+    if (path === null) return false;
+    history.replaceState({}, '', path);
+    return true;
+  };
+  window.addEventListener('hashchange', () => {
+    if (fromHash()) handler(current());
+  });
+  fromHash();
   handler(current());
 }
