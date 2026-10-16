@@ -2,6 +2,7 @@ import { h, mount } from '../dom.js';
 import { data, onStatus } from '../search-client.js';
 import { definitionPath } from '../router.js';
 import * as actions from '../actions.js';
+import { appVersion } from '../version.js';
 
 const capital = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -63,7 +64,13 @@ export default {
   async render(root) {
     let stopStatus = null;
     const draw = async () => {
-      const [info, bookmarks, likes, outbox] = await Promise.all([data.info(), actions.marks('bookmark'), actions.marks('like'), actions.outbox()]);
+      const [info, bookmarks, likes, outbox, version] = await Promise.all([
+        data.info(),
+        actions.marks('bookmark'),
+        actions.marks('like'),
+        actions.outbox(),
+        appVersion().catch((err) => ({ error: err.message }))
+      ]);
       const proposals = outbox.filter((o) => o.type === 'proposal');
       const stat = (value, label) => h('div', { class: 'stat' }, h('b', null, String(value)), h('span', null, label));
       const has = (tier) => info.tiers.includes(tier);
@@ -107,7 +114,17 @@ export default {
             h('h3', null, 'Waiting to be sent'),
             outbox.length
               ? h('ul', { class: 'list' }, outbox.slice(-50).reverse().map((o) => h('li', null, h('span', null, (OUTBOX_LABEL[o.type] ?? (() => o.type))(o.payload)), h('span', { class: 'm' }, new Date(o.at).toLocaleString()))))
-              : h('p', { class: 'empty' }, 'Nothing waiting. Sending starts once the zotune server is connected.')
+              : h('p', { class: 'empty' }, 'Nothing waiting. Sending starts once the zotune server is connected.'),
+
+            h('h2', { id: 'about' }, 'About this app'),
+            version.error
+              ? h('p', { class: 'loading-note is-error' }, `The version could not be read: ${version.error}`)
+              : h(
+                  'p',
+                  { class: 'meta-line' },
+                  `zotune v${version.version}, released ${version.date}. `,
+                  h('a', { href: 'https://github.com/khensolomon/zotune/blob/master/CHANGELOG.md', target: '_blank', rel: 'noopener' }, 'What changed')
+                )
           )
         )
       );

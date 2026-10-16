@@ -1,7 +1,7 @@
 // Service worker (web only): keeps the app shell available offline.
 // The dictionary itself lives in IndexedDB, managed by the data worker.
 
-const CACHE = 'zotune-shell-v1';
+const CACHE = 'zotune-shell-v2';
 const SHELL = [
   '/',
   '/index.html',
@@ -22,6 +22,8 @@ const SHELL = [
   '/js/cite.js',
   '/js/logo.js',
   '/js/recent.js',
+  '/js/version.js',
+  '/version.json',
   '/js/theme.js',
   '/js/components/loading.js',
   '/data/source.json',
