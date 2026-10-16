@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.16.2 — 2026-10-16
+
+- Links such as /definition/itna open directly on Cloudflare: wrangler.jsonc makes every address that is not a file load the app.
+- /#/definition/itna opens the same page as /definition/itna, and the address changes to the plain form.
+
 ### v26.10.16.1 — 2026-10-16
 
 - First numbered release, with everything listed above.
