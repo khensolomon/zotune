@@ -53,15 +53,24 @@ only run the tests; they never deploy.
 
 ## One-time setup
 
-1. **Cloudflare API token.** Cloudflare dashboard → My Profile → API Tokens →
-   Create Token → template **Edit Cloudflare Workers**, limited to the account
-   that holds the site.
+1. **Cloudflare API token**, owned by the account, with only what a deploy
+   needs: **Workers: Editor** scoped to the `zotune` Worker (creating the
+   Worker on a first deploy needs **Workers: Admin** instead). On the older
+   permission list this is Account → Workers Scripts → Edit. No routes
+   permission is needed: `wrangler.jsonc` sets no routes or domains. The
+   **Edit Cloudflare Workers** template grants far more (KV, R2, Pages,
+   routes) and is not needed.
 2. **Account ID.** Shown on the Workers & Pages overview.
 3. **GitHub secrets.** Repository → Settings → Secrets and variables →
    Actions: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-4. **Live check (optional).** Repository variable `SITE_URL`, for example
-   `https://zotune.com`. After deploying, the workflow reads the page and
-   requires its `application-name` meta to carry the released version.
+4. **Live check (optional).** Repository variable `SITE_URL`. After
+   deploying, the workflow reads that page and requires its
+   `application-name` meta to carry the released version; it retries for a
+   minute while the old version is still served. Use the Worker's
+   workers.dev address (`https://zotune.<subdomain>.workers.dev`, printed by
+   the deploy step). A custom domain behind Cloudflare bot protection answers
+   GitHub's machines with 403; the check then stops at once and says so,
+   while the deploy itself has succeeded.
 5. **Cloudflare's own Git build: off.** Workers & Pages → the project →
    Settings → Build: disconnect the repository. Releases arrive only from the
    workflow; Cloudflare builds nothing itself. The Worker name in
