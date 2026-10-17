@@ -134,3 +134,23 @@ test('the real tables load', { skip: REAL && existsSync(REAL) ? false : 'set ZOT
   assert.equal(cite.entry(model, resolve(index, 'Pasian'), { books }).word, 'Pasian');
   console.log(`  real tables: ${model.sensesByWord.size} words, ${model.senses.size} senses, ${index.key.length} search keys, ${ms} ms`);
 });
+
+test('sources get a short label and a place on /credits', () => {
+  assert.equal(cite.sourceLabel('zd', { name: 'Zomi Daily' }), 'Zomi Daily');
+  assert.equal(cite.sourceLabel('pk', { name: 'Paunam Khenna leh Kampau Luanzia' }), 'PKKL');
+  assert.equal(cite.sourceLabel('pk', { name: 'Paunam Khenna leh Kampau Luanzia', short: 'Paunam Khenna' }), 'Paunam Khenna');
+  assert.equal(cite.sourceLabel('zai', { name: 'zolai-ai merged dictionary' }), 'zolai-ai merged…');
+  assert.equal(cite.sourceLabel('xx', undefined), 'xx');
+
+  const model = load(FIXTURE);
+  const all = cite.credits(model);
+  assert.ok(all.length > 0);
+  assert.deepEqual(Object.keys(all[0]).sort(), ['code', 'credit', 'description', 'label', 'license', 'name', 'owner', 'permission', 'url']);
+  const e = cite.entry(model, 'w2', { books });
+  const refs = e.senses.flatMap((s) => s.sources);
+  assert.ok(refs.length > 0, 'the fixture entry has sources');
+  for (const r of refs) assert.match(r.href, /^\/credits#(bible|source-[a-z0-9]+)$/);
+  const verse = refs.find((r) => r.bible);
+  assert.equal(verse.href, '/credits#bible');
+  assert.equal(verse.label, `${books['65']} 1:2`);
+});

@@ -52,6 +52,7 @@ export const data = {
   phraseExamples: (text) => request('phraseExamples', { text }),
   neighbours: (id) => request('neighbours', { id }),
   info: () => request('info'),
+  credits: () => request('credits'),
   downloadExamples: () => request('downloadExamples'),
   downloadEnglish: () => request('downloadEnglish')
 };

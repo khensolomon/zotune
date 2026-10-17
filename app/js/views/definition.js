@@ -401,15 +401,21 @@ function feedback(sense, votes) {
   );
 }
 
+/** A source as a short tag that opens its credit. */
+function sourceTag(ref) {
+  return h('a', { class: 'example-ref', href: ref.href, title: `${ref.title} · see credits` }, ref.label);
+}
+
 function sources(sense) {
+  const verses = sense.sources.filter((r) => r.bible);
+  const named = sense.sources.filter((r) => !r.bible);
+  if (!verses.length && !named.length) return null;
+  const links = verses.slice(0, MAX_VERSES).map((r) => h('a', { class: 'source-link', href: r.href, title: r.title }, r.label));
+  const more = verses.length - MAX_VERSES;
   const parts = [];
-  if (sense.bible.length) {
-    const shown = sense.bible.slice(0, MAX_VERSES).join(', ');
-    const more = sense.bible.length - MAX_VERSES;
-    parts.push(more > 0 ? `${shown} and ${more} more` : shown);
-  }
-  parts.push(...sense.named);
-  return parts.length ? h('div', { class: 'meta-line' }, h('span', { class: 'meta-k' }, 'Found in'), parts.join(' · ')) : null;
+  if (links.length) parts.push(joinNodes(links, ', '), more > 0 ? ` and ${more} more` : null);
+  for (const r of named) parts.push(parts.length ? ' · ' : null, h('a', { class: 'source-link', href: r.href, title: r.title }, r.title));
+  return h('div', { class: 'meta-line' }, h('span', { class: 'meta-k' }, 'Found in'), parts);
 }
 
 function exampleItem(ex) {
@@ -417,7 +423,7 @@ function exampleItem(ex) {
     'li',
     { class: 'example' },
     h('q', { class: 'example-zo', lang: 'ctd' }, ex.parts.map((p) => (p.mark ? h('b', null, p.text) : p.text))),
-    h('p', { class: 'example-en' }, ex.en, ex.ref ? h('cite', { class: 'example-ref' }, ex.ref) : null)
+    h('p', { class: 'example-en' }, ex.en, ex.source ? sourceTag(ex.source) : null)
   );
 }
 
@@ -522,7 +528,7 @@ function senseBlock(sense, n, votes, shown) {
       ),
       examplesBlock(sense),
       nearWords(sense.relations),
-      sense.relations.some((r) => !shown.has(r.kind) && !NEAR[r.kind]) || sense.origin || tags.length || sense.bible.length || sense.named.length
+      sense.relations.some((r) => !shown.has(r.kind) && !NEAR[r.kind]) || sense.origin || tags.length || sense.sources.length
         ? h(
             'div',
             { class: 'meta' },

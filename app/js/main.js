@@ -10,6 +10,7 @@ import definition from './views/definition.js';
 import about from './views/about.js';
 import settings from './views/settings.js';
 import { markdownPage } from './views/page.js';
+import credits from './views/credits.js';
 import editor from './views/editor.js';
 import notFound from './views/not-found.js';
 import * as analytics from './analytics.js';
@@ -32,6 +33,7 @@ route('/settings', settings);
 route('/privacy', markdownPage('privacy', 'Privacy'));
 route('/terms', markdownPage('terms', 'Terms'));
 route('/cookies', markdownPage('cookies', 'Cookies'));
+route('/credits', credits);
 // Earlier addresses of the parts that Settings now holds.
 const moved = (to) => ({ nav: null, layout: 'page', title: 'Settings', render: () => navigate(to, { replace: true }) });
 route('/me', moved('/settings#words'));

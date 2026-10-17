@@ -43,8 +43,8 @@ test('heading ids', () => {
 test('every page in app/content reads, starts with a title and links only to known places', () => {
   const dir = new URL('../app/content/', import.meta.url);
   const pages = readdirSync(dir).filter((f) => f.endsWith('.md'));
-  assert.deepEqual(pages.sort(), ['cookies.md', 'privacy.md', 'terms.md']);
-  const routes = ['/privacy', '/terms', '/cookies', '/settings', '/about', '/'];
+  assert.deepEqual(pages.sort(), ['cookies.md', 'credits.md', 'privacy.md', 'terms.md']);
+  const routes = ['/privacy', '/terms', '/cookies', '/credits', '/settings', '/about', '/'];
   const ids = Object.fromEntries(pages.map((f) => [`/${f.replace('.md', '')}`, parse(readFileSync(new URL(f, dir), 'utf8')).filter((b) => b.type === 'heading').map((b) => b.id)]));
   for (const f of pages) {
     const blocks = parse(readFileSync(new URL(f, dir), 'utf8'));
@@ -63,6 +63,6 @@ test('every page in app/content reads, starts with a title and links only to kno
 
 test('the footer links to the separate pages', () => {
   const html = readFileSync(new URL('../app/index.html', import.meta.url), 'utf8');
-  for (const p of ['/privacy', '/terms', '/cookies']) assert.match(html, new RegExp(`<a href="${p}">`));
+  for (const p of ['/privacy', '/terms', '/cookies', '/credits']) assert.match(html, new RegExp(`<a href="${p}">`));
   assert.doesNotMatch(html, /about#(privacy|terms|cookies)/);
 });
