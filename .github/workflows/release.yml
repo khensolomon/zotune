@@ -111,25 +111,14 @@ jobs:
       - run: npm run build
       # wrangler is fetched for this step only; it is not a dependency of the
       # repository. It uploads dist/web as wrangler.jsonc describes.
-      # The version and the commit's first line become the message and tag of
-      # the Worker version, shown in Cloudflare's list of deployments instead
-      # of "Manually deployed". Values arrive through env, never pasted into
-      # the script, so a commit message cannot run as shell.
+      # The version is the message and tag of the Worker version, shown in
+      # Cloudflare's list of deployments instead of "Manually deployed".
       - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           VERSION: ${{ needs.plan.outputs.version }}
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          subject=$(printf '%s\n' "$COMMIT_MESSAGE" | head -n 1)
-          if [ "$EVENT" = "workflow_dispatch" ] || [ -z "$subject" ]; then subject="Run workflow from the Actions tab"; fi
-          message="v$VERSION - $subject - ${GITHUB_SHA:0:7}"
-          # Cloudflare keeps messages short; cut at 100 characters.
-          message=$(printf '%s' "$message" | cut -c1-100)
-          echo "message: $message"
-          npx --yes wrangler@4.151.1 deploy --tag "v$VERSION" --message "$message"
+        run: npx --yes wrangler@4.151.1 deploy --tag "v$VERSION" --message "v$VERSION"
       # With the repository variable SITE_URL set, the live page must report
       # this version in its application-name meta. A version that is not live
       # yet is retried; a refusal (4xx) is not, because waiting cannot change
