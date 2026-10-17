@@ -1,0 +1,41 @@
+# Every push and pull request: the tests and a production build.
+#
+# The release workflow calls this same file as its gate (with `gate: true`),
+# so a release is tested by exactly these steps. A push whose message starts
+# with "release:" is therefore skipped here: it is tested once, by the release
+# run, rather than twice in parallel.
+name: check
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+  workflow_call:
+    inputs:
+      gate:
+        description: Called as the release gate.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: inputs.gate || github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'release:')
+    runs-on: ubuntu-latest
+    env:
+      # Electron is only needed to run the desktop app, not to test or build.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Unit tests, including one that builds the site and checks it.
+      - run: npm test
+      # The build exactly as a release makes it.
+      - run: npm run build

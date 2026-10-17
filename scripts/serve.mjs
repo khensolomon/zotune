@@ -1,18 +1,27 @@
 // Development server for app/ (Node standard library only).
 // Serves existing files; any other path gets index.html so deep links work.
 //
-//   node scripts/serve.mjs [--port 5173] [--host 127.0.0.1] [--cite DIR]
+//   node scripts/serve.mjs [--port 5173] [--host 127.0.0.1] [--cite DIR] [--dist]
+//
+// --dist serves the production build in dist/web (made by npm run build)
+// instead of the source in app/.
 //
 // --cite DIR serves a local checkout of the dictionary tables (the cite folder
 // of laisiangtho/bible) at /cite/ and answers /data/source.json with a version
 // that changes whenever a table file changes, so local edits show up on reload.
 
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
 import { readFile, stat, readdir } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL('../app', import.meta.url)));
+const DIST = process.argv.includes('--dist');
+const ROOT = resolve(fileURLToPath(new URL(DIST ? '../dist/web' : '../app', import.meta.url)));
+if (DIST && !existsSync(join(ROOT, 'index.html'))) {
+  console.error(`No build in ${ROOT}. Run npm run build first.`);
+  process.exit(2);
+}
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -127,5 +136,5 @@ createServer(async (req, res) => {
     res.end(`Could not read ${file}: ${err.message}`);
   }
 }).listen(port, host, () => {
-  console.log(`zotune: http://${host}:${port}/${CITE ? `  (tables from ${CITE})` : ''}`);
+  console.log(`zotune: http://${host}:${port}/${DIST ? '  (build in dist/web)' : ''}${CITE ? `  (tables from ${CITE})` : ''}`);
 });

@@ -1,6 +1,6 @@
 {
   "name": "zotune",
-  "version": "26.1017.2",
+  "version": "26.1017.3",
   "private": true,
   "description": "Zolai–English dictionary: web app and frameless desktop app.",
   "license": "Apache-2.0",
@@ -10,11 +10,14 @@
   "scripts": {
     "start": "electron .",
     "serve": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "release:plan": "node scripts/release-plan.mjs",
     "test": "node --test \"tests/**/*.test.mjs\"",
     "version:next": "node scripts/version.mjs"
   },
   "devDependencies": {
-    "electron": "44.5.1"
+    "electron": "44.5.1",
+    "esbuild": "0.28.2"
   },
   "engines": {
     "node": ">=20"
