@@ -5,6 +5,7 @@ import { markedParts, matchKey } from '../text.js';
 import { loadingNote } from '../components/loading.js';
 import { classify } from '../query.js';
 import * as analytics from '../analytics.js';
+import { fitGloss } from '../gloss.js';
 import * as actions from '../actions.js';
 import { rememberWord, recentWords } from '../recent.js';
 
@@ -106,6 +107,18 @@ async function guide(root) {
   );
 }
 
+function partGloss(p) {
+  const terms = p.terms?.length ? p.terms : p.gloss ? [p.gloss] : [];
+  if (!terms.length) return null;
+  const { shown, hidden } = fitGloss(terms);
+  return h(
+    'span',
+    { class: 'part-g', title: hidden ? terms.join(', ') : null },
+    h('span', { class: 'part-gt' }, shown.join(', ')),
+    hidden ? h('span', { class: 'part-more', 'aria-label': `and ${hidden} more` }, `+${hidden}`) : null
+  );
+}
+
 /** Parts of a built word: it + na = itna. */
 function partsLine(parts, whole) {
   return h(
@@ -117,7 +130,7 @@ function partsLine(parts, whole) {
           p.word ? 'a' : 'span',
           { class: ['part', `part-${p.role}`], href: p.word ? definitionPath(p.word) : null, title: p.note ?? null },
           h('span', { class: 'part-w', lang: 'ctd' }, p.role === 'suffix' ? `-${p.text}` : p.role === 'prefix' ? `${p.text}-` : p.text),
-          p.gloss ? h('span', { class: 'part-g' }, p.gloss) : null
+          partGloss(p)
         )
       ),
       h('span', { class: 'part-op', 'aria-hidden': 'true' }, '+')

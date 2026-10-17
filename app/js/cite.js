@@ -464,7 +464,9 @@ function partFor(model, text, wordId, sense = null, prefer = null) {
     word: wordId ? model.words.get(wordId)?.[W.spelling] ?? text : null,
     number: sense && s?.[S.number] ? Number(s[S.number]) : null,
     role: type === 'prefix' ? 'prefix' : type === 'suffix' ? 'suffix' : 'word',
-    gloss: s ? shortGloss(model, s) : ''
+    gloss: s ? shortGloss(model, s) : '',
+    // Every English term of the meaning, so a short display can say how many it leaves out.
+    terms: s ? termsOf(model, s[S.id]) : []
   };
 }
 
