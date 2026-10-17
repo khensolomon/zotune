@@ -50,3 +50,11 @@ test('the security policy allows Google Analytics and still no inline script', (
   assert.doesNotMatch(html, /<script>(?!<\/script>)/, 'no inline script blocks');
   assert.match(MEASUREMENT_ID, /^G-[A-Z0-9]+$/);
 });
+
+test('a shortened gloss always says how many terms it leaves out', async () => {
+  const { fitGloss } = await import('../app/js/gloss.js');
+  assert.deepEqual(fitGloss(['love', 'hold dear']), { shown: ['love', 'hold dear'], hidden: 0 });
+  assert.deepEqual(fitGloss(['love', 'hold dear', 'cherish', 'adore', 'be fond of']), { shown: ['love', 'hold dear', 'cherish'], hidden: 2 });
+  assert.deepEqual(fitGloss(['a very long single english term indeed', 'two']), { shown: ['a very long single english term indeed'], hidden: 1 }, 'one term is always shown');
+  assert.deepEqual(fitGloss([]), { shown: [], hidden: 0 });
+});

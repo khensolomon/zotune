@@ -64,6 +64,12 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.7 — 2026-10-17
+
+- Example sources (Late 45:15, Zomi Daily…) are shown as small tags.
+- In "How it is built", a part's meaning shows the terms that fit and a +N count for the rest; the full list is in the tooltip.
+- After "No thanks" to usage statistics, a small chart button in the header reminds that they help; one click allows them, says so, and the button goes away. Never shown with Global Privacy Control or in the desktop app.
+
 ### v26.10.17.6 — 2026-10-17
 
 - Privacy, Terms and Cookies are pages of their own (/privacy, /terms, /cookies), written as Markdown files in app/content and shown by a small reader in the app, with no dependency. Old About links lead there.

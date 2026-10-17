@@ -4,6 +4,8 @@
 import { h, icon, ICONS, mount } from '../dom.js';
 import { onStatus } from '../search-client.js';
 import { outbox, onChange } from '../actions.js';
+import * as analytics from '../analytics.js';
+import { toast } from './toast.js';
 
 const MENU = [
   { key: 'home', href: '/', label: 'Home', icon: ICONS.home },
@@ -30,6 +32,32 @@ function windowControls(bridge) {
     max,
     h('button', { type: 'button', class: 'close', 'aria-label': 'Close', onclick: () => bridge.close() }, icon(ICONS.close))
   );
+}
+
+const STATS_LABEL = 'Usage statistics are off. Allow them to help find the words people miss.';
+
+/**
+ * Shown only after "No thanks": a reminder that statistics help. One click
+ * allows them, says so, and the button goes away. Never shown where the
+ * choice cannot be changed (Global Privacy Control, the desktop app).
+ */
+function statisticsReminder() {
+  const button = h(
+    'button',
+    { type: 'button', class: 'tool stats-off', 'aria-label': STATS_LABEL, title: STATS_LABEL },
+    icon(['M5 19V11', 'M12 19V5', 'M19 19v-6']),
+    h('span', { class: 'stats-dot', 'aria-hidden': 'true' })
+  );
+  const sync = () => {
+    button.hidden = !(analytics.changeable() && analytics.choice() === 'denied');
+  };
+  button.addEventListener('click', () => {
+    analytics.setChoice('granted');
+    toast('Usage statistics are on. Thank you. You can turn them off in Settings.');
+  });
+  analytics.onChange(sync);
+  sync();
+  return button;
 }
 
 const RING_R = 16;
@@ -76,8 +104,9 @@ export function createHeader(root) {
   const badge = h('span', { class: 'badge', hidden: true });
   const user = h('a', { class: 'tool user', href: '/settings', 'aria-label': 'Settings (guest)', title: 'Settings' }, icon(ICONS.user), badge);
 
+  const stats = statisticsReminder();
   const bridge = window.zotune;
-  const tools = h('div', { class: 'tools' }, status, user, bridge && bridge.platform !== 'darwin' ? windowControls(bridge) : null);
+  const tools = h('div', { class: 'tools' }, stats, status, user, bridge && bridge.platform !== 'darwin' ? windowControls(bridge) : null);
   mount(root, nav, tools);
 
   onStatus((s) => {
