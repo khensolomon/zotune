@@ -55,7 +55,7 @@ test('entry assembles meanings, relations, sources and examples', () => {
     { text: ' in ka lungsim a dim hi', mark: false }
   ]);
   assert.equal(one.examples[0].en, 'The love of God fills my heart');
-  assert.deepEqual(two.relations[0].targets[0], { word: 'itna', number: 1, sense: 's2' });
+  assert.deepEqual(two.relations[0].targets[0], { word: 'itna', number: 1, sense: 's2', gloss: 'love, affection' });
   assert.equal(two.statusName, 'low');
 });
 
