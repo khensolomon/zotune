@@ -599,6 +599,10 @@ function summaryLine(entry) {
   return h('p', { class: 'summary' }, bits.join(' · '));
 }
 
+function buildHeading(build) {
+  return h('h2', null, build.kind === 'analysis' ? 'May be read as' : build.kind === 'double' ? 'A word written twice' : 'How it is built');
+}
+
 const posId = (type) => `pos-${slug(type)}`;
 
 /** First terms of a meaning that fit a short line, with a +N count. */
@@ -608,28 +612,86 @@ function shortTerms(sense, room = 28) {
   return [h('span', { class: 'toc-g' }, shown.join(', ')), hidden ? h('span', { class: 'part-more', 'aria-label': `and ${hidden} more` }, `+${hidden}`) : null];
 }
 
+const CONTENTS_FROM = 4;
+const CHECKED = new Set(['reviewed', 'confirmed']);
+const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
+
+/** A small ⓘ that opens a one-line explanation in place; for readers of any level. */
+function infoTip(text, label = 'What does this mean?') {
+  const note = h('span', { class: 'info-note', role: 'note', hidden: true }, text);
+  const button = h('button', { type: 'button', class: 'info-btn', 'aria-label': label, 'aria-expanded': 'false' }, 'i');
+  button.addEventListener('click', () => {
+    const open = note.hidden;
+    note.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+  });
+  return { button, note };
+}
+
+/** The entry in one or two plain sentences: main meaning per part of speech, and how it is built. */
+function glance(entry, groups) {
+  const lines = [];
+  const meaningOf = (sense) => {
+    const terms = sense.terms.length ? sense.terms : sense.definition ? [sense.definition] : [];
+    const { shown } = fitGloss(terms, 30);
+    return h('em', null, shown.join(', '));
+  };
+  const parts = [];
+  // At most three parts of speech, so the sentence stays a glance.
+  const named = groups.slice(0, 3);
+  const rest = groups.length - named.length;
+  named.forEach((g, i) => {
+    const many = g.senses.length > 1 ? ` with ${g.senses.length} meanings, mainly` : ' meaning';
+    if (i === 0) parts.push(`${capital(article(g.type))} ${g.type}${many} `, meaningOf(g.senses[0]));
+    else parts.push(i === named.length - 1 && !rest ? '; and as ' : '; as ', `${article(g.type)} ${g.type}, `, meaningOf(g.senses[0]));
+  });
+  parts.push(rest ? `; and ${plural(rest, 'more part of speech', 'more parts of speech')}.` : '.');
+  lines.push(h('p', { class: 'glance-text' }, parts));
+  const build = entry.construction;
+  if (build?.parts?.length > 1) {
+    const pieces = joinNodes(
+      build.parts.map((p) => {
+        const g = p.terms?.[0] ?? p.gloss?.split(', ')[0];
+        return h('span', null, h('b', { lang: 'ctd' }, p.text), g ? ` (${g})` : null);
+      }),
+      ' + '
+    );
+    lines.push(
+      h('p', { class: 'glance-text' }, build.kind === 'analysis' ? ['Probably ', pieces, ', not yet checked by a speaker.'] : ['Built from ', pieces, '.'])
+    );
+  }
+  return h('div', { class: 'aside-block glance' }, h('span', { class: 'aside-label' }, 'At a glance'), lines);
+}
+
+/** Meanings checked so far, as a small bar and a sentence. */
+function checkedBlock(entry) {
+  const total = entry.senses.length;
+  const done = entry.senses.filter((s) => CHECKED.has(s.statusName)).length;
+  const tip = infoTip('Reviewed: a reviewer found no fault. Confirmed: a Zolai speaker confirmed it. A draft is not checked yet; your answers under each meaning help.');
+  return h(
+    'div',
+    { class: 'aside-block' },
+    h('span', { class: 'aside-label' }, 'Checked', tip.button),
+    h(
+      'div',
+      { class: 'checked' },
+      h('span', { class: 'checked-bar', 'aria-hidden': 'true' }, entry.senses.map((s) => h('i', { dataset: { status: s.statusName } }))),
+      h('span', null, total === 1 ? (done ? 'This meaning is checked' : 'Not checked yet') : `${done} of ${total} meanings`)
+    ),
+    tip.note
+  );
+}
+
 /**
- * The side column: a summary that depends on the entry. Blocks marked
- * data-fit (lowest number first) and lines marked data-trim are hidden when
- * the column would grow taller than the entry beside it (fitAside).
+ * The side column: the entry at a glance and what to do next, never a copy
+ * of the main column. Blocks marked data-fit (lowest number first) and lines
+ * marked data-trim give way when the column would grow taller than the entry
+ * beside it (fitAside).
  */
 function asideSummary(entry, groups) {
-  const blocks = [];
-  if (entry.senses.length > 1) {
-    const lines = [];
-    for (const g of groups) {
-      if (groups.length > 1) {
-        lines.push(h('li', { class: 'toc-pos' }, h('a', { class: 'toc-link', href: `#${posId(g.type)}` }, g.type), h('span', { class: 'toc-n' }, plural(g.senses.length, 'meaning', 'meanings'))));
-      }
-      g.senses.forEach((s, i) => lines.push(h('li', { class: 'toc-sense', dataset: { trim: '' } }, h('a', { class: 'toc-link', href: `#${s.id}` }, h('span', { class: 'toc-i' }, String(i + 1)), shortTerms(s)))));
-    }
-    const title = groups.length > 1 ? `${plural(entry.senses.length, 'meaning', 'meanings')} in ${groups.length} parts of speech` : plural(entry.senses.length, 'meaning', 'meanings');
-    // Filled in by fitAside when meaning lines have to give way.
-    lines.push(h('li', { class: 'toc-more', hidden: true }));
-    blocks.push(h('div', { class: 'aside-block', dataset: { fit: '2' } }, h('span', { class: 'aside-label' }, title), h('ul', { class: 'toc' }, lines)));
-  }
+  const blocks = [glance(entry, groups)];
   if (entry.english.length) {
-    const FIRST = 12;
+    const FIRST = 8;
     const extra = entry.english.slice(FIRST);
     const chip = (e) => h('a', { class: 'chip sm', href: definitionPath(e) }, e);
     const row = h('div', { class: 'row' }, entry.english.slice(0, FIRST).map(chip));
@@ -638,13 +700,31 @@ function asideSummary(entry, groups) {
       more.addEventListener('click', () => more.replaceWith(...extra.map(chip)));
       row.append(more);
     }
-    blocks.push(h('div', { class: 'aside-block', dataset: { fit: '1' } }, h('span', { class: 'aside-label' }, 'In English'), row));
+    blocks.push(h('div', { class: 'aside-block', dataset: { fit: '2' } }, h('span', { class: 'aside-label' }, 'Also found by searching in English'), row));
+  }
+  // A list of the meanings only where it helps to move around a long entry.
+  if (entry.senses.length >= CONTENTS_FROM) {
+    const lines = [];
+    for (const g of groups) {
+      if (groups.length > 1) lines.push(h('li', { class: 'toc-pos' }, h('a', { class: 'toc-link', href: `#${posId(g.type)}` }, g.type)));
+      g.senses.forEach((s, i) =>
+        lines.push(
+          h(
+            'li',
+            { class: 'toc-sense', dataset: { trim: '' } },
+            h('a', { class: 'toc-link', href: `#${s.id}` }, g.senses.length > 1 ? h('span', { class: 'toc-i' }, String(i + 1)) : null, shortTerms(s))
+          )
+        )
+      );
+    }
+    lines.push(h('li', { class: 'toc-more', hidden: true }));
+    blocks.push(h('div', { class: 'aside-block', dataset: { fit: '1' } }, h('span', { class: 'aside-label' }, 'On this page'), h('ul', { class: 'toc' }, lines)));
   }
   return h(
     'aside',
     { class: 'aside', 'aria-label': 'About this entry' },
     blocks,
-    h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'Status'), statusSummary(entry)),
+    checkedBlock(entry),
     h('div', null, h('a', { class: 'btn', href: `/workspace/entry/${encodeURIComponent(entry.id)}` }, icon(ICONS.edit), 'Improve this entry'))
   );
 }
@@ -742,7 +822,7 @@ async function showEntry(root, entry, query) {
             ? h(
                 'section',
                 { class: 'build' },
-                h('h2', null, build.kind === 'analysis' ? 'May be read as' : build.kind === 'double' ? 'A word written twice' : 'How it is built'),
+                buildHeading(build),
                 build.parts ? partsLine(build.parts, entry.word) : null,
                 build.notes.map((n) => h('p', { class: 'build-note' }, n)),
                 build.kind === 'analysis' ? h('p', { class: 'build-note' }, 'Worked out from the parts; not checked by a speaker.') : null
