@@ -283,6 +283,7 @@ const handlers = {
     };
   },
   neighbours: ({ id }) => neighbours(index, id),
+  credits: () => cite.credits(model),
   info: () => ({ ref: active.ref, format: active.format, base: baseUrl(active), tiers: active.tiers, stats: cite.stats(model) }),
   async downloadEnglish() {
     if (!(await ensureEnglish())) throw new Error('The English lexicon could not be downloaded. Check the connection and try again.');

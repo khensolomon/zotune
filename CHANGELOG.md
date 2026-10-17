@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.10 — 2026-10-17
+
+- A Credits page (/credits): an introduction written in app/content/credits.md, then every source the dictionary names, with its credit, owner, licence or permission and website, read from the dictionary's configuration.
+- The source under an example is a short tag (Zomi Daily, PKKL p. 15, Late 45:15) that opens its credit on /credits; sources under "Found in" link there too.
+
 ### v26.10.17.9 — 2026-10-17
 
 - The side column of a definition summarises the entry: with several meanings it lists them by part of speech, each linking to its place on the page. It never grows taller than the entry: meaning lines give way first (with a count of those left out), then the English words. More than 12 English words end in a +N button that shows the rest.

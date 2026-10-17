@@ -400,11 +400,68 @@ function target(model, id) {
   return w ? { word: w[W.spelling], number: null, sense: null, gloss: first ? shortGloss(model, first) : '' } : null;
 }
 
+const VERSE = /^(\d+)\.(\d+)\.(\d+(?:-\d+)?)$/;
+const SHORT_NAME = 20;
+
+/**
+ * A short label for a source: its `short` field in configuration.json, else
+ * its name when that is short, else the initials of its capitalised words
+ * ("Paunam Khenna leh Kampau Luanzia" → "PKKL"), else the name cut at a word.
+ */
+export function sourceLabel(code, info) {
+  if (info?.short) return info.short;
+  const name = info?.name ?? code;
+  if (name.length <= SHORT_NAME) return name;
+  const capitals = name.split(/\s+/).filter((w) => /^\p{Lu}/u.test(w));
+  if (capitals.length >= 2) return capitals.map((w) => w[0]).join('');
+  const cut = name.slice(0, SHORT_NAME).replace(/\s+\S*$/, '');
+  return `${cut}…`;
+}
+
+/** Whether a source's locator is a page number (its `locator` field, or its description says so). */
+const pagedSource = (info) => info?.locator === 'page' || /locator is the page number/i.test(info?.description ?? '');
+
+/**
+ * One source of a sense or example as shown to the reader: a short label, the
+ * full name for the tooltip, and the place on /credits that credits it.
+ */
+function sourceRef(model, src, books) {
+  const verse = VERSE.exec(src);
+  if (verse) {
+    const text = `${books?.[verse[1]] ?? `Book ${verse[1]}`} ${verse[2]}:${verse[3]}`;
+    return { label: text, title: `${text}, Bible`, href: '/credits#bible', bible: true };
+  }
+  const [code, locator] = src.split(':');
+  const info = model.config.source?.[code];
+  const paged = pagedSource(info) && locator ? locator : null;
+  const label = sourceLabel(code, info);
+  return {
+    label: paged ? `${label} p. ${paged}` : label,
+    title: `${info?.name ?? code}${paged ? `, page ${paged}` : ''}`,
+    href: `/credits#source-${code}`,
+    bible: false
+  };
+}
+
+/** Sources of a sense: verses first, then each named source once. */
+function sourceRefs(model, sources, books) {
+  const verses = [];
+  const named = new Map();
+  for (const src of sources) {
+    if (VERSE.test(src)) verses.push(sourceRef(model, src, books));
+    else {
+      const code = src.split(':')[0];
+      if (!named.has(code)) named.set(code, sourceRef(model, code, books));
+    }
+  }
+  return [...verses, ...named.values()];
+}
+
 function formatSources(model, sources, books) {
   const bible = [];
   const named = new Set();
   for (const src of sources) {
-    const verse = /^(\d+)\.(\d+)\.(\d+(?:-\d+)?)$/.exec(src);
+    const verse = VERSE.exec(src);
     if (verse) {
       bible.push(`${books?.[verse[1]] ?? `Book ${verse[1]}`} ${verse[2]}:${verse[3]}`);
     } else {
@@ -413,6 +470,21 @@ function formatSources(model, sources, books) {
     }
   }
   return { bible, named: [...named] };
+}
+
+/** Every source credited by the dictionary, in the order of configuration.json. */
+export function credits(model) {
+  return Object.entries(model.config.source ?? {}).map(([code, info]) => ({
+    code,
+    label: sourceLabel(code, info),
+    name: info.name ?? code,
+    owner: info.owner ?? '',
+    credit: info.credit ?? '',
+    description: info.description ?? '',
+    license: info.license ?? '',
+    permission: info.permission ?? '',
+    url: info.url ?? ''
+  }));
 }
 
 function markExample(text, marks) {
@@ -439,12 +511,11 @@ export function examplesFor(model, senseId, books, limit, offset = 0) {
   const uses = model.examples.bySense.get(senseId) ?? [];
   return uses.slice(offset, offset + limit).map(([id, , start, length]) => {
     const ex = model.examples.text.get(id);
-    const src = ex?.[1] ? formatSources(model, [ex[1]], books) : { bible: [], named: [] };
     return {
       id,
       parts: ex ? markExample(ex[2], [[list(start).map(Number), Number(length)]]) : [],
       en: model.examples.translation.get(id) ?? '',
-      ref: [...src.bible, ...src.named].join(', ')
+      source: ex?.[1] ? sourceRef(model, ex[1], books) : null
     };
   });
 }
@@ -710,10 +781,9 @@ export function examplesContaining(model, text, books, max = 5) {
     const hay = ` ${row[2].toLowerCase().replace(/[.,;:!?“”"()]/g, ' ').replace(/\s+/g, ' ')} `;
     const at = hay.indexOf(needle);
     if (at < 0) continue;
-    const src = row[1] ? formatSources(model, [row[1]], books) : { bible: [], named: [] };
     const start = hay.slice(0, at + 1).trim().split(' ').filter(Boolean).length + 1;
     const length = needle.trim().split(' ').length;
-    out.push({ id, parts: markExample(row[2], [[[start], length]]), en: model.examples.translation.get(id) ?? '', ref: [...src.bible, ...src.named].join(', ') });
+    out.push({ id, parts: markExample(row[2], [[[start], length]]), en: model.examples.translation.get(id) ?? '', source: row[1] ? sourceRef(model, row[1], books) : null });
     if (out.length >= max) break;
   }
   return out;
@@ -847,6 +917,7 @@ export function entry(model, wordId, { books = null, exampleLimit = 3 } = {}) {
       origin: s[S.origin],
       bible: src.bible,
       named: src.named,
+      sources: sourceRefs(model, list(s[S.source]), books),
       note: s[S.note],
       terms: list(g?.[G.terms] ?? ''),
       definition: g?.[G.definition] ?? '',
