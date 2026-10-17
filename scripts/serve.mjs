@@ -35,7 +35,8 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.woff2': 'font/woff2',
-  '.txt': 'text/plain; charset=utf-8'
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8'
 };
 
 function option(name, fallback) {
@@ -124,7 +125,7 @@ createServer(async (req, res) => {
     return;
   }
   const found = await fileFor(url.pathname);
-  if (!found && /^\/(assets|css|data|fonts|js)\//.test(url.pathname)) {
+  if (!found && /^\/(assets|content|css|data|fonts|js)\//.test(url.pathname)) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`Not found: ${url.pathname}`);
     return;

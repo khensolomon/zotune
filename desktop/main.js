@@ -29,7 +29,7 @@ function resolveFile(requestUrl) {
   const full = path.join(APP_ROOT, rel);
   if (full !== APP_ROOT && !full.startsWith(APP_ROOT + path.sep)) return { status: 403 };
   if (fs.existsSync(full) && fs.statSync(full).isFile()) return { file: full };
-  if (/^\/(assets|css|data|fonts|js)\//.test(pathname)) return { status: 404 };
+  if (/^\/(assets|content|css|data|fonts|js)\//.test(pathname)) return { status: 404 };
   return { file: path.join(APP_ROOT, 'index.html') };
 }
 

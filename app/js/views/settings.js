@@ -80,7 +80,7 @@ function statisticsChooser() {
     'div',
     { class: 'setting' },
     h('div', { class: 'seg', role: 'group', 'aria-label': 'Usage statistics' }, buttons),
-    h('p', { class: 'meta-line' }, 'Google Analytics counts page views and searches (single words only, with whether they were found), bookmarks, likes and answers. Nothing is sent while this is off. ', h('a', { href: '/about#privacy' }, 'Details'))
+    h('p', { class: 'meta-line' }, 'Google Analytics counts page views and searches (single words only, with whether they were found), bookmarks, likes and answers. Nothing is sent while this is off. ', h('a', { href: '/privacy#usage-statistics' }, 'Details'))
   );
   return h('div', null, chooser, local);
 }

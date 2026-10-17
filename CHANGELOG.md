@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.6 — 2026-10-17
+
+- Privacy, Terms and Cookies are pages of their own (/privacy, /terms, /cookies), written as Markdown files in app/content and shown by a small reader in the app, with no dependency. Old About links lead there.
+- The consent card is plainer: no icon, the title "Share usage statistics?" (distinct from About's "Help improve it"), and lighter rounded buttons.
+
 ### v26.10.17.5 — 2026-10-17
 
 - The version is written only in package.json. The release build, npm run serve and the desktop app fill it into the page's application-name meta, and Settings reads it from there; app/version.json is gone.

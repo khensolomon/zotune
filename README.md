@@ -22,6 +22,7 @@ npm test             # unit tests (node:test), including a checked build
 | --- | --- |
 | `app/` | The single-page app: routes, views, workers, styles, fonts, icons |
 | `app/data/source.json` | Version of the dictionary tables the app reads |
+| `app/content/` | Privacy, Terms and Cookies, written in Markdown and shown at `/privacy`, `/terms`, `/cookies` (read by `app/js/markdown.js`, no dependency) |
 | `desktop/` | Electron main process and preload bridge |
 | `scripts/serve.mjs` | Development server with deep-link fallback |
 | `scripts/build.mjs` | Production build (esbuild) into `dist/web` |
