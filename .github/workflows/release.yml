@@ -1,0 +1,141 @@
+# Releases, asked for by the commit that should be released.
+#
+#   node scripts/version.mjs --note "…" --apply
+#   git commit -am "release: web 26.10.17.3"      # or release: desktop, release: all
+#   git push                                      # to master
+#
+#   release: web      tests → build → Cloudflare (wrangler deploy of dist/web)
+#   release: desktop  not set up yet; the plan stops with that reason
+#   release: all      both
+#
+# Only the first line of the head commit of a push to master is read. With
+# "Squash and merge" that is the pull request's title, so a pull request
+# titled "release: web …" releases when it is merged; a merge commit
+# ("Merge pull request #…") releases nothing. The same choice is on the
+# Actions tab as "Run workflow". scripts/release-plan.mjs reads the message
+# and refuses a version stamped in one file but not the others; run it
+# locally to see what a push would do.
+#
+# The build exists only inside this run: nothing built is committed or kept
+# on a branch. Cloudflare receives the files from wrangler and does not build
+# anything itself. One-time setup is in docs/releasing.md.
+name: release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to release
+        type: choice
+        options: [web, desktop, all]
+        default: web
+
+# One release at a time. A second release push waits rather than cancelling a
+# release that may already be half published.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'release:')
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.plan.outputs.web }}
+      desktop: ${{ steps.plan.outputs.desktop }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: plan
+        name: Read the release plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          TARGET: ${{ inputs.target }}
+          RELEASE_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "$REF" != "refs/heads/master" ]; then
+            echo "::error::releases are made from master, not $REF"
+            exit 1
+          fi
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            node scripts/release-plan.mjs --target "$TARGET"
+          else
+            node scripts/release-plan.mjs
+          fi
+
+  test:
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    with:
+      gate: true
+
+  # ---------------------------------------------------------------- web ----
+
+  web:
+    needs: [plan, test]
+    if: needs.plan.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: web
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - name: Require the Cloudflare secrets
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -n "$TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::secrets not set:$missing; see docs/releasing.md"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # wrangler is fetched for this step only; it is not a dependency of the
+      # repository. It uploads dist/web as wrangler.jsonc describes.
+      - name: Deploy to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.151.1 deploy
+      # With the repository variable SITE_URL set (https://zotune.com), the
+      # live page must report this version in its application-name meta.
+      - name: Check the live version
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "::notice::repository variable SITE_URL is not set; the live version is not checked"
+            exit 0
+          fi
+          for attempt in 1 2 3 4 5 6; do
+            live=$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/?release=$GITHUB_RUN_ID" \
+              | sed -n 's/.*name="application-name" content="zotune.com" data-version="\([^"]*\)".*/\1/p')
+            if [ "$live" = "$VERSION" ]; then
+              echo "$SITE_URL serves $VERSION"
+              exit 0
+            fi
+            echo "attempt $attempt: $SITE_URL serves '${live:-nothing}', waiting for $VERSION"
+            sleep 10
+          done
+          echo "::error::$SITE_URL still serves '${live:-nothing}' instead of $VERSION"
+          exit 1

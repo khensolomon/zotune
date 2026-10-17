@@ -31,3 +31,4 @@ data/vocab/
 # Node / Electron
 node_modules/
 out/
+.wrangler/

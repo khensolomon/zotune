@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.3 — 2026-10-17
+
+- Releases are built and deployed by GitHub Actions: a commit on master whose first line is "release: web" is tested, bundled with esbuild (hashed file names, generated service worker list) and deployed to Cloudflare. Other pushes only run the tests. Nothing built is committed.
+- npm run build writes the production site to dist/web; npm run serve -- --dist serves it.
+
 ### v26.10.17.2 — 2026-10-17
 
 - The logo on the home page and above definitions opens /definition, the guide to using the dictionary.

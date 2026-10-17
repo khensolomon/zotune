@@ -21,7 +21,7 @@ native window, offline install and OS integration for the few desktop users.
 ## Repository layout
 
 ```
-app/                    the SPA (served as-is, no build step)
+app/                    the SPA (runs as-is in development; bundled for release)
   index.html            shell: header, view outlet
   css/app.css           design tokens and components
   js/main.js            boot: router, header, status, service worker
@@ -38,7 +38,8 @@ app/                    the SPA (served as-is, no build step)
   data/books.json       Bible book names for verse references
   sw.js                 service worker (web only)
 desktop/                Electron main and preload
-scripts/serve.mjs       development server with SPA fallback
+scripts/serve.mjs       development server with SPA fallback (--dist serves the build)
+scripts/build.mjs       production build into dist/web (docs/releasing.md)
 tests/                  node:test unit tests
 docs/                   this document
 ```

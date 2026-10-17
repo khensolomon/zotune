@@ -1,45 +1,11 @@
 // Service worker (web only): keeps the app shell available offline.
 // The dictionary itself lives in IndexedDB, managed by the data worker.
 
-const CACHE = 'zotune-shell-v5';
-const SHELL = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/css/app.css',
-  '/fonts/figtree.woff2',
-  '/fonts/source-serif-4.woff2',
-  '/fonts/source-serif-4-italic.woff2',
-  '/assets/logo.svg',
-  '/assets/favicon.svg',
-  '/js/main.js',
-  '/js/router.js',
-  '/js/dom.js',
-  '/js/text.js',
-  '/js/store.js',
-  '/js/actions.js',
-  '/js/search-index.js',
-  '/js/cite.js',
-  '/js/logo.js',
-  '/js/recent.js',
-  '/js/version.js',
-  '/version.json',
-  '/js/theme.js',
-  '/js/components/loading.js',
-  '/data/source.json',
-  '/data/books.json',
-  '/js/search-client.js',
-  '/js/workers/data.worker.js',
-  '/js/components/header.js',
-  '/js/components/search-field.js',
-  '/js/views/home.js',
-  '/js/views/definition.js',
-  '/js/views/about.js',
-  '/js/views/settings.js',
-  '/js/query.js',
-  '/js/views/editor.js',
-  '/js/views/not-found.js'
-];
+// The cache name and the file list are written by scripts/build.mjs for each
+// build (file names carry a content hash). The values here only apply to an
+// unbuilt copy of app/, which is not deployed.
+const CACHE = 'zotune-unbuilt';
+const SHELL = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

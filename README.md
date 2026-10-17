@@ -1,16 +1,19 @@
 # zotune
 
-Zolai–English dictionary. One HTML5 app (vanilla JavaScript, no build step) that
-runs on the web and in a frameless Electron window.
+Zolai–English dictionary. One HTML5 app (vanilla JavaScript; the source runs as it is,
+and a release is bundled with esbuild) that runs on the web and in a frameless
+Electron window.
 
 ## Run
 
 ```bash
-npm install          # Electron only; the web app has no dependencies
-npm run serve        # web app at http://127.0.0.1:5173/
+npm install          # Electron and esbuild (development only); the app itself has no dependencies
+npm run serve        # web app from the source, at http://127.0.0.1:5173/
 npm run serve -- --cite ../bible/cite   # same, reading a local checkout of the tables
+npm run build        # production build in dist/web (not committed)
+npm run serve -- --dist                 # serves that build
 npm start            # desktop app
-npm test             # unit tests (node:test)
+npm test             # unit tests (node:test), including a checked build
 ```
 
 ## Layout
@@ -21,6 +24,9 @@ npm test             # unit tests (node:test)
 | `app/data/source.json` | Version of the dictionary tables the app reads |
 | `desktop/` | Electron main process and preload bridge |
 | `scripts/serve.mjs` | Development server with deep-link fallback |
+| `scripts/build.mjs` | Production build (esbuild) into `dist/web` |
+| `scripts/version.mjs`, `scripts/release-plan.mjs` | Version stamping; what a push releases |
+| `.github/workflows/` | Tests on every push; releases on `release: …` commits |
 | `tests/` | Unit tests |
 | `docs/architecture.md` | Architecture, back-end plan and open decisions |
 
@@ -46,14 +52,16 @@ Every screen has its own URL, for example `/definition/itna`. `/#/definition/itn
 opens the same page and the address changes to the plain form. The desktop app also
 answers `zotune://definition/itna`.
 
-## Deploy
-
-The site is the static files in `app/`; `wrangler.jsonc` deploys them to Cloudflare
-(`npx wrangler deploy`) and makes every address that is not a file load the app, so
-links like `/definition/itna` work when opened directly.
-
 Keyboard: `/` focuses search; on a definition, `[` and `]` go to the previous and
 next word.
+
+## Deploy
+
+A commit on master whose first line is `release: web` is tested, built and deployed
+to Cloudflare by `.github/workflows/release.yml`; other pushes are only tested.
+`wrangler.jsonc` makes every address that is not a file load the app, so links like
+`/definition/itna` work when opened directly. Steps and one-time setup:
+`docs/releasing.md`.
 
 ## Fonts
 
