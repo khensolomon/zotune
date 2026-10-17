@@ -451,6 +451,57 @@ function examplesBlock(sense) {
   return [list, h('div', { class: 'more-row' }, more, fewer)];
 }
 
+// Similar and opposite words get a panel of their own: each word with its
+// meaning, so the comparison can be read without opening every link.
+const NEAR = {
+  s: { label: 'Similar', glyph: '≈' },
+  a: { label: 'Opposite', glyph: '↔' }
+};
+
+function nearGloss(gloss) {
+  if (!gloss) return null;
+  const terms = gloss.split(', ');
+  const { shown, hidden } = fitGloss(terms, 20);
+  return h(
+    'span',
+    { class: 'near-g', title: hidden ? gloss : null },
+    shown.join(', '),
+    hidden ? h('span', { class: 'part-more', 'aria-label': `and ${hidden} more` }, `+${hidden}`) : null
+  );
+}
+
+function nearWords(relations) {
+  const groups = relations.filter((r) => NEAR[r.kind]);
+  if (!groups.length) return null;
+  return h(
+    'div',
+    { class: 'near' },
+    groups.map((r) =>
+      h(
+        'section',
+        { class: ['near-group', `near-${r.kind}`], 'aria-label': NEAR[r.kind].label },
+        h('h3', { class: 'near-k' }, h('span', { class: 'near-glyph', 'aria-hidden': 'true' }, NEAR[r.kind].glyph), NEAR[r.kind].label),
+        h(
+          'ul',
+          { class: 'near-list' },
+          r.targets.map((t) =>
+            h(
+              'li',
+              null,
+              h(
+                'a',
+                { class: 'near-word', href: definitionPath(t.word) },
+                h('span', { class: 'near-w', lang: 'ctd' }, t.word, t.number ? h('sup', null, String(t.number)) : null),
+                nearGloss(t.gloss)
+              )
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
 function senseBlock(sense, n, votes, shown) {
   const gloss = sense.terms.length ? sense.terms.join(', ') : null;
   const tags = [...sense.fields, ...sense.categories];
@@ -469,11 +520,12 @@ function senseBlock(sense, n, votes, shown) {
         sense.text ? h('p', { class: 'remark' }, marked(sense.text)) : null
       ),
       examplesBlock(sense),
-      sense.relations.some((r) => !shown.has(r.kind)) || sense.origin || tags.length || sense.bible.length || sense.named.length
+      nearWords(sense.relations),
+      sense.relations.some((r) => !shown.has(r.kind) && !NEAR[r.kind]) || sense.origin || tags.length || sense.bible.length || sense.named.length
         ? h(
             'div',
             { class: 'meta' },
-            sense.relations.filter((r) => !shown.has(r.kind)).map((r) =>
+            sense.relations.filter((r) => !shown.has(r.kind) && !NEAR[r.kind]).map((r) =>
               h('div', { class: 'meta-line' }, h('span', { class: 'meta-k' }, r.label), joinNodes(r.targets.map((t) => wordLink(t.word, t.number)), r.kind === 'j' ? ' + ' : ', '))
             ),
             sense.origin ? h('div', { class: 'meta-line' }, h('span', { class: 'meta-k' }, 'Origin'), sense.origin) : null,
@@ -481,7 +533,12 @@ function senseBlock(sense, n, votes, shown) {
             sources(sense)
           )
         : null,
-      h('div', { class: 'sense-foot' }, h('span', { class: 'status', dataset: { status: sense.statusName } }, capital(sense.statusName)), feedback(sense, votes))
+      h(
+        'div',
+        { class: 'sense-foot' },
+        h('div', { class: 'foot-head' }, h('span', { class: 'foot-title' }, 'Check this meaning'), h('span', { class: 'status', dataset: { status: sense.statusName } }, capital(sense.statusName))),
+        feedback(sense, votes)
+      )
     )
   );
 }

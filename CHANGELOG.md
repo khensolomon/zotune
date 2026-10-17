@@ -64,6 +64,12 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.8 — 2026-10-17
+
+- Similar and opposite words have a panel of their own under each meaning: each word as a chip with its meaning (and a +N count when terms are left out), similar marked ≈ and opposite ↔.
+- Examples are set in the plain typeface with a thin rule at the left, so they no longer look like the meaning (which stays serif).
+- The helpful and correct questions sit in a light panel titled "Check this meaning", with the entry's status as a tag and a gentle lift on hover.
+
 ### v26.10.17.7 — 2026-10-17
 
 - Example sources (Late 45:15, Zomi Daily…) are shown as small tags.

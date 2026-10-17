@@ -393,10 +393,11 @@ function target(model, id) {
   if (id[0] === 's') {
     const s = model.senses.get(id);
     const w = s && model.words.get(s[S.word]);
-    return w ? { word: w[W.spelling], number: s[S.number] ? Number(s[S.number]) : null, sense: id } : null;
+    return w ? { word: w[W.spelling], number: s[S.number] ? Number(s[S.number]) : null, sense: id, gloss: shortGloss(model, s) } : null;
   }
   const w = model.words.get(id);
-  return w ? { word: w[W.spelling], number: null, sense: null } : null;
+  const first = w && model.sensesByWord.get(id)?.[0];
+  return w ? { word: w[W.spelling], number: null, sense: null, gloss: first ? shortGloss(model, first) : '' } : null;
 }
 
 function formatSources(model, sources, books) {
