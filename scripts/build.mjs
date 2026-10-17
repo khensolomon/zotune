@@ -12,7 +12,7 @@
 //   - sw.js with this build's cache name and file list.
 //   - _headers: long-lived caching for the hashed files (read by Cloudflare
 //     and Netlify; an ordinary file elsewhere).
-//   - assets/, fonts/, data/ and manifest.webmanifest as they are.
+//   - assets/, content/, fonts/, data/ and manifest.webmanifest as they are.
 //
 // Every rewrite must match exactly once; anything else stops the build with
 // the reason, so a change in the source cannot produce a site that half works.
@@ -29,7 +29,7 @@ const { appVersion, stampHtml } = appVersionModule;
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const APP = join(ROOT, 'app');
 const TARGET = 'es2022';
-const COPY = ['assets', 'fonts', 'data', 'manifest.webmanifest'];
+const COPY = ['assets', 'content', 'fonts', 'data', 'manifest.webmanifest'];
 
 /** Replaces the single occurrence of `find`; fails when there is not exactly one. */
 export function replaceOnce(text, find, replacement, where) {
@@ -124,7 +124,8 @@ export async function buildSite(out) {
     workerPath,
     ...(await filesIn('fonts', (n) => n.endsWith('.woff2'))),
     ...(await filesIn('assets', (n) => n.endsWith('.svg'))),
-    ...(await filesIn('data', (n) => n.endsWith('.json')))
+    ...(await filesIn('data', (n) => n.endsWith('.json'))),
+    ...(await filesIn('content', (n) => n.endsWith('.md')))
   ];
   const fingerprint = digest([html, main, worker, theme, css].join('\0'));
   let sw = await readFile(join(APP, 'sw.js'), 'utf8');
