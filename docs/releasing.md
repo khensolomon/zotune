@@ -46,9 +46,9 @@ special commit.
 | `release: desktop` | Not set up yet; the plan stops with that reason |
 | `release: all` | Both; stops for the same reason until desktop is set up |
 
-A version written after the target must be the stamped one, and the version
-must agree in `app/version.json`, `package.json`, `package-lock.json`,
-`app/index.html` and `CHANGELOG.md`. Other pushes, a README change included,
+A version written after the target must be the stamped one. The version is
+the one in `package.json`; `package-lock.json` must agree and `CHANGELOG.md`
+must have a section for it. The build writes it into the page. Other pushes, a README change included,
 only run the tests; they never deploy.
 
 ## One-time setup

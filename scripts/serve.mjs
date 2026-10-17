@@ -15,6 +15,9 @@ import { existsSync } from 'node:fs';
 import { readFile, stat, readdir } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import appVersionModule from '../desktop/app-version.js';
+
+const { appVersion, stampHtml } = appVersionModule;
 
 const DIST = process.argv.includes('--dist');
 const ROOT = resolve(fileURLToPath(new URL(DIST ? '../dist/web' : '../app', import.meta.url)));
@@ -128,7 +131,10 @@ createServer(async (req, res) => {
   }
   const file = found ?? join(ROOT, 'index.html');
   try {
-    const body = await readFile(file);
+    let body = await readFile(file);
+    // The source page leaves its version empty; it is filled in from
+    // package.json on every request, so a version bump shows on reload.
+    if (!DIST && file === join(ROOT, 'index.html')) body = stampHtml(body.toString('utf8'), appVersion(join(ROOT, '..')));
     res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(body);
   } catch (err) {

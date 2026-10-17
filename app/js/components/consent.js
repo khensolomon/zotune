@@ -6,7 +6,7 @@ import * as analytics from '../analytics.js';
 const DELAY_MS = 1200;
 
 /** Shows the card once, a moment after the app starts, if no choice was made yet. */
-export function askForConsent() {
+export function askForConsent({ delay = DELAY_MS } = {}) {
   if (!analytics.needsAsking()) return;
   setTimeout(() => {
     if (!analytics.needsAsking() || document.querySelector('.consent')) return;
@@ -41,5 +41,5 @@ export function askForConsent() {
     );
     document.body.append(card);
     requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('is-in')));
-  }, DELAY_MS);
+  }, delay);
 }
