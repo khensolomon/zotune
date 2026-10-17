@@ -64,6 +64,12 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.9 — 2026-10-17
+
+- The side column of a definition summarises the entry: with several meanings it lists them by part of speech, each linking to its place on the page. It never grows taller than the entry: meaning lines give way first (with a count of those left out), then the English words. More than 12 English words end in a +N button that shows the rest.
+- Similar and opposite words are one row each, without a frame; chips in the side column have no border; the "Check this meaning" panel is lighter.
+- Links to a part of the page in view only scroll; the page is not rendered again.
+
 ### v26.10.17.8 — 2026-10-17
 
 - Similar and opposite words have a panel of their own under each meaning: each word as a chip with its meaning (and a +N count when terms are left out), similar marked ≈ and opposite ↔.

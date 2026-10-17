@@ -67,7 +67,20 @@ export const definitionPath = (word) => `/definition/${encodeURIComponent(word)}
 
 export function start(onRoute) {
   handler = onRoute;
-  window.addEventListener('popstate', () => handler(current()));
+  // Moving to #part of the page in view also fires popstate; only a change of
+  // path or query renders the page again.
+  let shown = location.pathname + location.search;
+  window.addEventListener('popstate', () => {
+    const now = location.pathname + location.search;
+    if (now === shown) return;
+    shown = now;
+    handler(current());
+  });
+  const render = handler;
+  handler = (state) => {
+    shown = location.pathname + location.search;
+    render(state);
+  };
   document.addEventListener('click', (event) => {
     if (event.defaultPrevented || event.button !== 0) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -76,6 +89,8 @@ export function start(onRoute) {
     const url = new URL(a.href, location.href);
     if (url.origin !== location.origin) return;
     if (/^\/(assets|css|data|fonts|js)\//.test(url.pathname)) return;
+    // A link to a part of the page in view only scrolls; nothing is rendered again.
+    if (url.hash && url.pathname === location.pathname && url.search === location.search) return;
     event.preventDefault();
     navigate(url.pathname + url.search + url.hash);
   });

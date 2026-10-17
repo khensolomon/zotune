@@ -6,6 +6,7 @@ import { loadingNote } from '../components/loading.js';
 import { classify } from '../query.js';
 import * as analytics from '../analytics.js';
 import { fitGloss } from '../gloss.js';
+import { slug } from '../markdown.js';
 import * as actions from '../actions.js';
 import { rememberWord, recentWords } from '../recent.js';
 
@@ -592,6 +593,94 @@ function summaryLine(entry) {
   return h('p', { class: 'summary' }, bits.join(' · '));
 }
 
+const posId = (type) => `pos-${slug(type)}`;
+
+/** First terms of a meaning that fit a short line, with a +N count. */
+function shortTerms(sense, room = 28) {
+  const terms = sense.terms.length ? sense.terms : sense.definition ? [sense.definition] : [];
+  const { shown, hidden } = fitGloss(terms, room);
+  return [h('span', { class: 'toc-g' }, shown.join(', ')), hidden ? h('span', { class: 'part-more', 'aria-label': `and ${hidden} more` }, `+${hidden}`) : null];
+}
+
+/**
+ * The side column: a summary that depends on the entry. Blocks marked
+ * data-fit (lowest number first) and lines marked data-trim are hidden when
+ * the column would grow taller than the entry beside it (fitAside).
+ */
+function asideSummary(entry, groups) {
+  const blocks = [];
+  if (entry.senses.length > 1) {
+    const lines = [];
+    for (const g of groups) {
+      if (groups.length > 1) {
+        lines.push(h('li', { class: 'toc-pos' }, h('a', { class: 'toc-link', href: `#${posId(g.type)}` }, g.type), h('span', { class: 'toc-n' }, plural(g.senses.length, 'meaning', 'meanings'))));
+      }
+      g.senses.forEach((s, i) => lines.push(h('li', { class: 'toc-sense', dataset: { trim: '' } }, h('a', { class: 'toc-link', href: `#${s.id}` }, h('span', { class: 'toc-i' }, String(i + 1)), shortTerms(s)))));
+    }
+    const title = groups.length > 1 ? `${plural(entry.senses.length, 'meaning', 'meanings')} in ${groups.length} parts of speech` : plural(entry.senses.length, 'meaning', 'meanings');
+    // Filled in by fitAside when meaning lines have to give way.
+    lines.push(h('li', { class: 'toc-more', hidden: true }));
+    blocks.push(h('div', { class: 'aside-block', dataset: { fit: '2' } }, h('span', { class: 'aside-label' }, title), h('ul', { class: 'toc' }, lines)));
+  }
+  if (entry.english.length) {
+    const FIRST = 12;
+    const extra = entry.english.slice(FIRST);
+    const chip = (e) => h('a', { class: 'chip sm', href: definitionPath(e) }, e);
+    const row = h('div', { class: 'row' }, entry.english.slice(0, FIRST).map(chip));
+    if (extra.length) {
+      const more = h('button', { type: 'button', class: 'chip sm more-chip', 'aria-label': `Show ${extra.length} more English words` }, `+${extra.length}`);
+      more.addEventListener('click', () => more.replaceWith(...extra.map(chip)));
+      row.append(more);
+    }
+    blocks.push(h('div', { class: 'aside-block', dataset: { fit: '1' } }, h('span', { class: 'aside-label' }, 'In English'), row));
+  }
+  return h(
+    'aside',
+    { class: 'aside', 'aria-label': 'About this entry' },
+    blocks,
+    h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'Status'), statusSummary(entry)),
+    h('div', null, h('a', { class: 'btn', href: `/workspace/entry/${encodeURIComponent(entry.id)}` }, icon(ICONS.edit), 'Improve this entry'))
+  );
+}
+
+/**
+ * Keeps the side column no taller than the entry while the two stand side by
+ * side: first meaning lines are dropped from the end, then whole blocks by
+ * their data-fit order. Re-checked whenever the entry changes size.
+ */
+function fitAside(article, aside) {
+  if (!article || !aside) return null;
+  const apply = () => {
+    for (const el of aside.querySelectorAll('[data-fit], [data-trim]')) el.hidden = false;
+    for (const el of aside.querySelectorAll('.toc-more')) el.hidden = true;
+    const sideBySide = aside.offsetLeft > article.offsetLeft && aside.offsetTop < article.offsetTop + 40;
+    if (!sideBySide) return;
+    const tooTall = () => aside.offsetHeight > article.offsetHeight;
+    const lines = [...aside.querySelectorAll('[data-trim]')].reverse();
+    const blocks = [...aside.querySelectorAll('[data-fit]')].sort((a, b) => Number(a.dataset.fit) - Number(b.dataset.fit));
+    for (const block of blocks) {
+      if (!tooTall()) return;
+      // A block with lines to trim gives up lines first, keeping at least one.
+      const own = lines.filter((l) => block.contains(l));
+      const note = block.querySelector('.toc-more');
+      for (const [i, l] of own.slice(0, -1).entries()) {
+        if (!tooTall()) return;
+        l.hidden = true;
+        // Say how many meanings are not listed, so the list never looks complete when it is not.
+        if (note) {
+          note.hidden = false;
+          note.textContent = `${plural(i + 1, 'more meaning', 'more meanings')} on the page`;
+        }
+      }
+      if (tooTall()) block.hidden = true;
+    }
+  };
+  const ro = new ResizeObserver(() => apply());
+  ro.observe(article);
+  apply();
+  return () => ro.disconnect();
+}
+
 async function showEntry(root, entry, query) {
   const [bookmarked, liked, votes] = await Promise.all([
     actions.isMarked('bookmark', entry.id),
@@ -653,23 +742,18 @@ async function showEntry(root, entry, query) {
                 build.kind === 'analysis' ? h('p', { class: 'build-note' }, 'Worked out from the parts; not checked by a speaker.') : null
               )
             : null,
-          groups.map((g) => h('section', { class: 'pos' }, h('h2', null, g.type), g.senses.map((s, i) => senseBlock(s, i + 1, votes, shownKinds)))),
+          groups.map((g) => h('section', { class: 'pos', id: posId(g.type) }, h('h2', null, g.type), g.senses.map((s, i) => senseBlock(s, i + 1, votes, shownKinds)))),
           examplesMissing ? h('p', { class: 'meta-line' }, 'Example sentences are not on this device yet. ', h('a', { href: '/settings#data' }, 'Get them in Settings')) : null,
           familyBlock(`Words built on ${entry.word}`, entry.builtOn),
           familyBlock(`Words and phrases with ${entry.word}`, entry.usedIn)
         ),
-        h(
-          'aside',
-          { class: 'aside', 'aria-label': 'About this entry' },
-          entry.english.length
-            ? h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'In English'), h('div', { class: 'row' }, entry.english.slice(0, 12).map((e) => h('a', { class: 'chip sm', href: definitionPath(e) }, e))))
-            : null,
-          h('div', { class: 'aside-block' }, h('span', { class: 'aside-label' }, 'Status'), statusSummary(entry)),
-          h('div', null, h('a', { class: 'btn', href: `/workspace/entry/${encodeURIComponent(entry.id)}` }, icon(ICONS.edit), 'Improve this entry'))
-        )
+        asideSummary(entry, groups)
       )
     )
   );
+  const article = root.querySelector('article.entry');
+  const aside = root.querySelector('aside.aside');
+  return fitAside(article, aside);
 }
 
 export default {
@@ -693,7 +777,7 @@ export default {
       return null;
     }
     analytics.track('search', { search_term: analytics.reportableTerm(q) ?? undefined, query_kind: q.kind, result: 'found', headword: entry.word });
-    await showEntry(root, entry, q.clean);
+    const stopFit = await showEntry(root, entry, q.clean);
     rememberWord(entry.word, entry.senses[0]?.terms.join(', ') || '');
 
     // Hidden navigation: [ and ] step through headwords.
@@ -704,6 +788,9 @@ export default {
       if (e.key === ']' && next) navigate(definitionPath(next));
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      stopFit?.();
+    };
   }
 };
