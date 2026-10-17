@@ -64,6 +64,10 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.2 — 2026-10-17
+
+- The logo on the home page and above definitions opens /definition, the guide to using the dictionary.
+
 ### v26.10.17.1 — 2026-10-17
 
 - The page source shows which version was delivered: <meta name="application-name" content="zotune.com" data-version="…"> in index.html, kept current by scripts/version.mjs.

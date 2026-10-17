@@ -40,7 +40,7 @@ function showBar(value, { hint = false, cycle = false } = {}) {
     h(
       'div',
       { class: 'searchbar-row' },
-      h('a', { class: 'logo', href: '/', 'aria-label': 'zotune, home' }, logo(30)),
+      h('a', { class: 'logo', href: '/definition', 'aria-label': 'zotune, how to use the dictionary' }, logo(30)),
       barField.el
     )
   );

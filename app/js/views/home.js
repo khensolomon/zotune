@@ -29,7 +29,7 @@ export default {
       h(
         'div',
         { class: 'home' },
-        h('div', { class: 'home-brand' }, h('h1', { class: 'visually-hidden' }, 'zotune'), logo(48), h('p', { class: 'tagline' }, 'Zo kammal — every Zolai word, in English')),
+        h('div', { class: 'home-brand' }, h('h1', { class: 'visually-hidden' }, 'zotune'), h('a', { class: 'logo home-logo', href: '/definition', 'aria-label': 'zotune, how to use the dictionary' }, logo(48)), h('p', { class: 'tagline' }, 'Zo kammal — every Zolai word, in English')),
         h('div', { class: 'home-search' }, field.el, tryRow, loadingNote())
       )
     );
