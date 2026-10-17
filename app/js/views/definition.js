@@ -4,6 +4,7 @@ import { definitionPath, navigate } from '../router.js';
 import { markedParts, matchKey } from '../text.js';
 import { loadingNote } from '../components/loading.js';
 import { classify } from '../query.js';
+import * as analytics from '../analytics.js';
 import * as actions from '../actions.js';
 import { rememberWord, recentWords } from '../recent.js';
 
@@ -343,6 +344,7 @@ function iconToggle(kind, entry, on) {
   const btn = h('button', { type: 'button', class: ['icon-btn', `icon-${kind}`], 'aria-pressed': String(on), 'aria-label': labels[kind][on ? 1 : 0], title: labels[kind][on ? 1 : 0] }, icon(kind === 'like' ? ICONS.heart : ICONS.bookmark));
   btn.addEventListener('click', async () => {
     const next = await actions.toggleMark(kind, entry);
+    analytics.track(kind, { headword: entry.word, on: next });
     btn.setAttribute('aria-pressed', String(next));
     btn.setAttribute('aria-label', labels[kind][next ? 1 : 0]);
     btn.title = labels[kind][next ? 1 : 0];
@@ -362,6 +364,7 @@ function feedback(sense, votes) {
       );
       b.addEventListener('click', async () => {
         const next = await actions.vote(kind, sense.id, value);
+        analytics.track('vote', { vote_kind: kind, value: next ?? 'cleared' });
         for (const other of buttons) other.setAttribute('aria-pressed', String(other === b && next === value));
         thanks.textContent = next ? 'Thank you' : '';
       });
@@ -603,7 +606,7 @@ export default {
   nav: 'definition',
   layout: 'definition',
   title: (params) => params.word ?? 'Definition',
-  async render(root, { word }) {
+  async render(root, { word }, ctx) {
     if (!word) {
       await guide(root);
       return null;
@@ -612,9 +615,14 @@ export default {
     const q = classify(word);
     const entry = q.clean ? await data.resolve(q.clean) : null;
     if (!entry) {
+      ctx.reportAs(analytics.placeholderPath(q), 'Definition');
+      // A word that is not a headword is the case worth counting; phrases,
+      // sentences, numbers and other input get their own answer.
+      analytics.track('search', { search_term: analytics.reportableTerm(q) ?? undefined, query_kind: q.kind, result: q.kind === 'word' ? 'not_found' : 'answered' });
       await answer(root, q);
       return null;
     }
+    analytics.track('search', { search_term: analytics.reportableTerm(q) ?? undefined, query_kind: q.kind, result: 'found', headword: entry.word });
     await showEntry(root, entry, q.clean);
     rememberWord(entry.word, entry.senses[0]?.terms.join(', ') || '');
 

@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.4 — 2026-10-17
+
+- Usage statistics with Google Analytics, only after consent: a card at the bottom right asks once (Allow / No thanks), Settings can change the choice, and the browser's Global Privacy Control signal keeps it off. Page views, searches (a single word and whether it was found; phrases and sentences without their text), bookmarks, likes and answers are counted; advertising features are off. Not used in the desktop app or in local development.
+- About: the privacy and cookie text says what is collected and when.
+
 ### v26.10.17.3 — 2026-10-17
 
 - Releases are built and deployed by GitHub Actions: a commit on master whose first line is "release: web" is tested, bundled with esbuild (hashed file names, generated service worker list) and deployed to Cloudflare. Other pushes only run the tests. Nothing built is committed.

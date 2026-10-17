@@ -3,6 +3,7 @@ import { data, onStatus } from '../search-client.js';
 import { definitionPath } from '../router.js';
 import * as actions from '../actions.js';
 import { appVersion } from '../version.js';
+import * as analytics from '../analytics.js';
 
 const capital = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -31,6 +32,33 @@ function themeChooser() {
     return b;
   });
   return h('div', { class: 'setting' }, h('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' }, buttons), h('p', { class: 'meta-line' }, 'Auto follows the setting of this device.'));
+}
+
+function statisticsChooser() {
+  if (!analytics.changeable()) {
+    const why = navigator.globalPrivacyControl === true
+      ? 'Your browser asks sites not to track you (Global Privacy Control), so statistics stay off.'
+      : 'Statistics are not collected in this copy of the app.';
+    return h('div', { class: 'setting' }, h('p', { class: 'meta-line' }, why));
+  }
+  const options = [
+    ['granted', 'Allowed'],
+    ['denied', 'Off']
+  ];
+  const buttons = options.map(([value, label]) => {
+    const b = h('button', { type: 'button', 'aria-pressed': String(analytics.choice() === value) }, label);
+    b.addEventListener('click', () => {
+      analytics.setChoice(value);
+      buttons.forEach((x, i) => x.setAttribute('aria-pressed', String(options[i][0] === value)));
+    });
+    return b;
+  });
+  return h(
+    'div',
+    { class: 'setting' },
+    h('div', { class: 'seg', role: 'group', 'aria-label': 'Usage statistics' }, buttons),
+    h('p', { class: 'meta-line' }, 'Google Analytics counts page views and searches (single words only, with whether they were found), bookmarks, likes and answers. Nothing is sent while this is off. ', h('a', { href: '/about#privacy' }, 'Details'))
+  );
 }
 
 function markList(items, emptyText) {
@@ -87,6 +115,9 @@ export default {
 
             h('h2', { id: 'appearance' }, 'Appearance'),
             themeChooser(),
+
+            h('h2', { id: 'privacy' }, 'Usage statistics'),
+            statisticsChooser(),
 
             h('h2', { id: 'words' }, 'Your words'),
             h('h3', null, 'Bookmarks'),

@@ -11,6 +11,9 @@ import about from './views/about.js';
 import settings from './views/settings.js';
 import editor from './views/editor.js';
 import notFound from './views/not-found.js';
+import * as analytics from './analytics.js';
+import { askForConsent } from './components/consent.js';
+import { appVersion } from './version.js';
 
 const bridge = window.zotune;
 if (bridge) document.documentElement.classList.add('is-desktop', `platform-${bridge.platform}`);
@@ -73,7 +76,12 @@ async function render({ path }) {
   }
 
   view.replaceChildren();
+  let reported = null;
   const ctx = {
+    // A view whose address carries typed text reports a placeholder instead.
+    reportAs: (reportPath, reportTitle) => {
+      reported = { path: reportPath, title: reportTitle };
+    },
     setTitle: (t) => {
       document.title = t ? `${t} — zotune` : 'zotune';
     },
@@ -91,6 +99,7 @@ async function render({ path }) {
       return;
     }
     cleanup = done;
+    analytics.pageView(reported?.path ?? path, reported ? `${reported.title} — zotune` : document.title);
   } catch (err) {
     if (mine !== renderSeq) return;
     console.error(err);
@@ -103,7 +112,13 @@ async function render({ path }) {
   if (v.layout === 'definition' && !params.word) barField?.focus();
 }
 
+// Usage statistics: only after consent, only on the web over https.
+analytics.start();
 start(render);
+appVersion()
+  .then((v) => analytics.setVersion(v.version))
+  .catch((err) => console.warn('zotune: version not read for statistics:', err.message));
+askForConsent();
 
 // "/" focuses search from anywhere outside a text field.
 document.addEventListener('keydown', (e) => {
