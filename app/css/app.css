@@ -438,6 +438,7 @@ img { display: block; }
 }
 .home-brand { display: flex; flex-direction: column; align-items: center; gap: 16px; margin: 0; }
 .home-brand .logo-svg { height: 48px; width: auto; max-width: 100%; }
+.home-logo { display: flex; justify-content: center; max-width: 100%; border-radius: 6px; }
 .tagline { margin: 0; font-size: 16px; color: var(--muted); text-align: center; }
 .home-search { width: 100%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
 .try { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; font-size: 14px; color: var(--muted); }
