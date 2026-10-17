@@ -6,7 +6,9 @@
 // Versions are vYY.MM.DD.N: the release date and N, the number of the release
 // on that day. app/version.json holds the version; package.json holds the same
 // version as YY.MMDD.N, valid semver that orders correctly; CHANGELOG.md gets a
-// section for it with the notes given. Without --apply nothing is written.
+// section for it with the notes given; app/index.html carries it in
+// <meta name="application-name" data-version="…">, so the page source shows
+// which version a server delivered. Without --apply nothing is written.
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +19,20 @@ const FILES = {
   version: join(ROOT, 'app/version.json'),
   pkg: join(ROOT, 'package.json'),
   lock: join(ROOT, 'package-lock.json'),
-  changelog: join(ROOT, 'CHANGELOG.md')
+  changelog: join(ROOT, 'CHANGELOG.md'),
+  html: join(ROOT, 'app/index.html')
 };
 const VERSIONS_HEADING = '## Versions';
+export const VERSION_META = /<meta name="application-name" content="zotune\.com" data-version="([^"]*)">/g;
+
+/** index.html with the version in its application-name meta; fails unless there is exactly one. */
+export function stampHtml(html, version) {
+  const found = html.match(VERSION_META) ?? [];
+  if (found.length !== 1) {
+    throw new Error(`app/index.html must hold exactly one <meta name="application-name" content="zotune.com" data-version="…">; found ${found.length}.`);
+  }
+  return html.replace(VERSION_META, `<meta name="application-name" content="zotune.com" data-version="${version}">`);
+}
 
 function fail(message) {
   console.error(`version: ${message}`);
@@ -81,12 +94,14 @@ async function main() {
   const lock = JSON.parse(await readFile(FILES.lock, 'utf8'));
   lock.version = semver;
   if (lock.packages?.['']) lock.packages[''].version = semver;
+  const html = stampHtml(await readFile(FILES.html, 'utf8'), version);
 
   await writeFile(FILES.version, `${JSON.stringify({ version, date }, null, 2)}\n`);
   await writeFile(FILES.pkg, `${JSON.stringify(pkg, null, 2)}\n`);
   await writeFile(FILES.lock, `${JSON.stringify(lock, null, 2)}\n`);
   await writeFile(FILES.changelog, changelog.slice(0, insertAt) + section + changelog.slice(insertAt));
-  console.log(`Wrote v${version} to app/version.json, package.json, package-lock.json and CHANGELOG.md.`);
+  await writeFile(FILES.html, html);
+  console.log(`Wrote v${version} to app/version.json, app/index.html, package.json, package-lock.json and CHANGELOG.md.`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -35,7 +35,10 @@ Publishing a new version of the dictionary means changing `ref` there. See
 
 Releases are numbered vYY.MM.DD.N (the date and the release number of that
 day) and listed in `CHANGELOG.md`, together with what the app does. The next
-version is made with `node scripts/version.mjs --note "…" --apply`.
+version is made with `node scripts/version.mjs --note "…" --apply`, which also
+writes it into `app/index.html` as
+`<meta name="application-name" content="zotune.com" data-version="…">`, so the
+page source shows which version a server delivered.
 
 ## Links
 
