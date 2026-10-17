@@ -3,7 +3,12 @@
 // Google's script is not requested and nothing is sent until the visitor
 // allows it (the consent card, or Settings). It stays off without a choice,
 // after "No thanks", when the browser sends the Global Privacy Control signal,
-// in the desktop app, and outside https (local development).
+// and in the desktop app.
+//
+// On http://localhost (npm run serve) the card and the switch work as on the
+// site, but nothing is sent: each event is printed in the browser console
+// instead. With ?analytics=send in the address, events are sent marked as
+// debug, so they appear in GA's DebugView.
 //
 // What is sent: page views (results that are not headwords are reported under
 // a placeholder path, so typed text does not travel in the address), and the
@@ -16,9 +21,18 @@ const KEY = 'zotune.analytics';
 const SCRIPT = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
 const TERM_MAX = 32;
 
-/** Whether this copy of the app may send statistics at all. */
-export function available({ protocol, desktop }) {
-  return protocol === 'https:' && !desktop;
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * How statistics behave in this copy of the app: 'live' (sent), 'preview'
+ * (local; printed in the console, not sent), 'debug' (local with
+ * ?analytics=send; sent marked as debug) or 'off'.
+ */
+export function modeFor({ protocol, hostname, desktop, search = '' }) {
+  if (desktop) return 'off';
+  if (protocol === 'https:') return 'live';
+  if (protocol === 'http:' && LOCAL_HOSTS.has(hostname)) return new URLSearchParams(search).get('analytics') === 'send' ? 'debug' : 'preview';
+  return 'off';
 }
 
 /** The effective choice: 'granted', 'denied' or null (not asked yet). */
@@ -50,8 +64,11 @@ let version = null;
 // The page in view, so that allowing statistics on it counts it once.
 let current = null;
 
-function env() {
-  return { protocol: location.protocol, desktop: Boolean(window.zotune) };
+let mode = null;
+/** Decided once per page load (?analytics=send is only in the first address). */
+export function currentMode() {
+  mode ??= modeFor({ protocol: location.protocol, hostname: location.hostname, desktop: Boolean(window.zotune), search: location.search });
+  return mode;
 }
 
 function stored() {
@@ -69,15 +86,29 @@ export function choice() {
 
 /** Whether the consent card should be shown. */
 export function needsAsking() {
-  return available(env()) && choice() === null;
+  return currentMode() !== 'off' && choice() === null;
 }
 
 /** Whether the choice can be changed here (Settings hides the switch otherwise). */
 export function changeable() {
-  return available(env()) && navigator.globalPrivacyControl !== true;
+  return currentMode() !== 'off' && navigator.globalPrivacyControl !== true;
+}
+
+/** Forgets the choice, so the consent card asks again (local testing). */
+export function resetChoice() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch (err) {
+    console.warn('zotune: the analytics choice could not be removed:', err.message);
+  }
+  changes.dispatchEvent(new Event('change'));
 }
 
 function gtag() {
+  if (currentMode() === 'preview') {
+    console.info('zotune statistics (local preview, not sent):', ...arguments);
+    return;
+  }
   // gtag.js reads the arguments object itself, not an array.
   window.dataLayer.push(arguments);
 }
@@ -86,9 +117,14 @@ function load() {
   if (loaded) return;
   loaded = true;
   window.dataLayer = window.dataLayer || [];
+  const debug = currentMode() === 'debug';
   gtag('consent', 'default', { analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' });
   gtag('js', new Date());
-  gtag('config', MEASUREMENT_ID, { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false, app_version: version ?? undefined });
+  const config = { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false };
+  if (version) config.app_version = version;
+  if (debug) config.debug_mode = true;
+  gtag('config', MEASUREMENT_ID, config);
+  if (currentMode() === 'preview') return;
   const s = document.createElement('script');
   s.async = true;
   s.src = SCRIPT;
@@ -118,7 +154,7 @@ export function setChoice(value) {
   } catch (err) {
     console.warn('zotune: the analytics choice could not be saved:', err.message);
   }
-  if (value === 'granted' && available(env())) {
+  if (value === 'granted' && currentMode() !== 'off') {
     load();
     if (current) pageView(current.path, current.title);
   }
@@ -138,7 +174,7 @@ const on = () => loaded && choice() === 'granted';
 
 /** Starts statistics at boot when they were allowed on an earlier visit. */
 export function start() {
-  if (available(env()) && choice() === 'granted') load();
+  if (currentMode() !== 'off' && choice() === 'granted') load();
 }
 
 /** Adds the app version to everything sent from now on. */

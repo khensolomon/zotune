@@ -7,8 +7,8 @@
 // The first line of the message must start with "release:" followed by web,
 // desktop or all ("release:web" and "release: web" both count). A version
 // written after the target (release: web 26.10.17.3) must be the stamped one.
-// The version must be the same in app/version.json, package.json,
-// package-lock.json, app/index.html and CHANGELOG.md.
+// The version is the one in package.json; package-lock.json must agree and
+// CHANGELOG.md must have a section for it.
 //
 // Prints the plan; inside GitHub Actions it is also written to $GITHUB_OUTPUT
 // as web, desktop, version and tag. Anything wrong stops with the reason.
@@ -17,7 +17,7 @@ import { readFileSync, appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { toSemver, VERSION_META } from './version.mjs';
+import { fromSemver } from './version.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TARGETS = ['web', 'desktop', 'all'];
@@ -35,18 +35,15 @@ export function readMessage(message) {
   return { target, written: written ? written[1] : null };
 }
 
-/** The stamped version, after checking that every file agrees. */
+/** The stamped version, after checking that the files that follow it agree. */
 export function stampedVersion(read) {
-  const { version } = JSON.parse(read('app/version.json'));
+  const semver = JSON.parse(read('package.json')).version;
+  const version = fromSemver(semver);
   const problems = [];
-  const semver = toSemver(version);
-  if (JSON.parse(read('package.json')).version !== semver) problems.push(`package.json is not ${semver}`);
   const lock = JSON.parse(read('package-lock.json'));
   if (lock.version !== semver || (lock.packages?.[''] && lock.packages[''].version !== semver)) problems.push(`package-lock.json is not ${semver}`);
-  const metas = [...read('app/index.html').matchAll(VERSION_META)];
-  if (metas.length !== 1 || metas[0][1] !== version) problems.push('app/index.html does not carry it in its application-name meta');
   if (!read('CHANGELOG.md').includes(`\n### v${version} — `)) problems.push('CHANGELOG.md has no section for it');
-  if (problems.length) throw new Error(`app/version.json says ${version}, but ${problems.join('; ')}. Stamp with: node scripts/version.mjs --note "…" --apply`);
+  if (problems.length) throw new Error(`package.json says ${version}, but ${problems.join('; ')}. Stamp with: node scripts/version.mjs --note "…" --apply`);
   return version;
 }
 

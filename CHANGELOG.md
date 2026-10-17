@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.17.5 — 2026-10-17
+
+- The version is written only in package.json. The release build, npm run serve and the desktop app fill it into the page's application-name meta, and Settings reads it from there; app/version.json is gone.
+- Usage statistics can be tested locally: with npm run serve the consent card and the switch work, and each event is printed in the browser console instead of being sent. ?analytics=send sends events marked as debug for GA's DebugView. Settings can show the consent card again.
+
 ### v26.10.17.4 — 2026-10-17
 
 - Usage statistics with Google Analytics, only after consent: a card at the bottom right asks once (Allow / No thanks), Settings can change the choice, and the browser's Global Privacy Control signal keeps it off. Page views, searches (a single word and whether it was found; phrases and sentences without their text), bookmarks, likes and answers are counted; advertising features are off. Not used in the desktop app or in local development.

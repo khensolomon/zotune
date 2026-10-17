@@ -7,11 +7,12 @@
 //     bundled and minified; the worker reference inside main is rewritten to
 //     the hashed name.
 //   - js/theme.<hash>.js and css/app.<hash>.css: minified.
-//   - index.html pointing at the hashed files.
+//   - index.html pointing at the hashed files and carrying the version from
+//     package.json in its application-name meta.
 //   - sw.js with this build's cache name and file list.
 //   - _headers: long-lived caching for the hashed files (read by Cloudflare
 //     and Netlify; an ordinary file elsewhere).
-//   - assets/, fonts/, data/, manifest.webmanifest and version.json as they are.
+//   - assets/, fonts/, data/ and manifest.webmanifest as they are.
 //
 // Every rewrite must match exactly once; anything else stops the build with
 // the reason, so a change in the source cannot produce a site that half works.
@@ -21,11 +22,14 @@ import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import appVersionModule from '../desktop/app-version.js';
+
+const { appVersion, stampHtml } = appVersionModule;
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const APP = join(ROOT, 'app');
 const TARGET = 'es2022';
-const COPY = ['assets', 'fonts', 'data', 'manifest.webmanifest', 'version.json'];
+const COPY = ['assets', 'fonts', 'data', 'manifest.webmanifest'];
 
 /** Replaces the single occurrence of `find`; fails when there is not exactly one. */
 export function replaceOnce(text, find, replacement, where) {
@@ -103,7 +107,8 @@ export async function buildSite(out) {
   const cssPath = hashedPath('/css/app.css', css);
   files.set(cssPath, css);
 
-  let html = await readFile(join(APP, 'index.html'), 'utf8');
+  const version = appVersion(ROOT);
+  let html = stampHtml(await readFile(join(APP, 'index.html'), 'utf8'), version);
   html = replaceOnce(html, 'src="/js/theme.js"', `src="${themePath}"`, 'app/index.html');
   html = replaceOnce(html, 'href="/css/app.css"', `href="${cssPath}"`, 'app/index.html');
   html = replaceOnce(html, 'src="/js/main.js"', `src="${mainPath}"`, 'app/index.html');
@@ -113,7 +118,6 @@ export async function buildSite(out) {
     '/',
     '/index.html',
     '/manifest.webmanifest',
-    '/version.json',
     cssPath,
     themePath,
     mainPath,
@@ -122,7 +126,7 @@ export async function buildSite(out) {
     ...(await filesIn('assets', (n) => n.endsWith('.svg'))),
     ...(await filesIn('data', (n) => n.endsWith('.json')))
   ];
-  const fingerprint = digest([html, main, worker, theme, css, (await readFile(join(APP, 'version.json'), 'utf8'))].join('\0'));
+  const fingerprint = digest([html, main, worker, theme, css].join('\0'));
   let sw = await readFile(join(APP, 'sw.js'), 'utf8');
   sw = replaceOnce(sw, "const CACHE = 'zotune-unbuilt';", `const CACHE = 'zotune-${fingerprint}';`, 'app/sw.js');
   sw = replaceOnce(sw, "const SHELL = ['/', '/index.html'];", `const SHELL = ${JSON.stringify(shell)};`, 'app/sw.js');
@@ -140,7 +144,7 @@ export async function buildSite(out) {
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, text);
   }
-  return { out, files: [...files.keys()], shell };
+  return { out, files: [...files.keys()], shell, version };
 }
 
 async function main() {

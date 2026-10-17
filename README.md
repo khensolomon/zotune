@@ -40,11 +40,22 @@ Publishing a new version of the dictionary means changing `ref` there. See
 ## Versions
 
 Releases are numbered vYY.MM.DD.N (the date and the release number of that
-day) and listed in `CHANGELOG.md`, together with what the app does. The next
-version is made with `node scripts/version.mjs --note "…" --apply`, which also
-writes it into `app/index.html` as
-`<meta name="application-name" content="zotune.com" data-version="…">`, so the
-page source shows which version a server delivered.
+day) and listed in `CHANGELOG.md`, together with what the app does. The version is
+written in one place, `package.json`, as YY.MMDD.N (valid semver);
+`node scripts/version.mjs --note "…" --apply` makes the next one. Whoever serves
+the page fills it into
+`<meta name="application-name" content="zotune.com" data-version="…">`: the
+release build, `npm run serve` and the desktop app (`desktop/app-version.js`).
+The page source therefore shows which version a server delivered, and Settings
+reads it from there.
+
+## Usage statistics
+
+Google Analytics runs only after the visitor allows it (`app/js/analytics.js`).
+With `npm run serve` the consent card and the Settings switch work as on the site,
+but nothing is sent: each event is printed in the browser console. Opening the
+page with `?analytics=send` sends events marked as debug, for GA's DebugView.
+Settings → Usage statistics has a button that shows the card again.
 
 ## Links
 

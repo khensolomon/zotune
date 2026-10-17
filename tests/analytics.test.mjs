@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { available, choiceFrom, reportableTerm, placeholderPath, MEASUREMENT_ID } from '../app/js/analytics.js';
+import { modeFor, choiceFrom, reportableTerm, placeholderPath, MEASUREMENT_ID } from '../app/js/analytics.js';
 import { classify } from '../app/js/query.js';
 
-test('statistics run only on the web over https, never in the desktop app', () => {
-  assert.equal(available({ protocol: 'https:', desktop: false }), true);
-  assert.equal(available({ protocol: 'http:', desktop: false }), false);
-  assert.equal(available({ protocol: 'https:', desktop: true }), false);
+test('statistics are sent on the web over https, printed locally, and off in the desktop app', () => {
+  assert.equal(modeFor({ protocol: 'https:', hostname: 'zotune.com', desktop: false }), 'live');
+  assert.equal(modeFor({ protocol: 'https:', hostname: 'zotune.com', desktop: true }), 'off');
+  assert.equal(modeFor({ protocol: 'app:', hostname: 'zotune', desktop: true }), 'off');
+  assert.equal(modeFor({ protocol: 'http:', hostname: '127.0.0.1', desktop: false }), 'preview');
+  assert.equal(modeFor({ protocol: 'http:', hostname: 'localhost', desktop: false, search: '?analytics=send' }), 'debug');
+  assert.equal(modeFor({ protocol: 'http:', hostname: 'example.com', desktop: false }), 'off');
 });
 
 test('nothing is assumed: no choice means ask, and Global Privacy Control means off', () => {

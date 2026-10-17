@@ -112,12 +112,14 @@ async function render({ path }) {
   if (v.layout === 'definition' && !params.word) barField?.focus();
 }
 
-// Usage statistics: only after consent, only on the web over https.
+// Usage statistics: only after consent (see analytics.js for local testing).
+try {
+  analytics.setVersion(appVersion().version);
+} catch (err) {
+  console.warn(`zotune: statistics are sent without a version: ${err.message}`);
+}
 analytics.start();
 start(render);
-appVersion()
-  .then((v) => analytics.setVersion(v.version))
-  .catch((err) => console.warn('zotune: version not read for statistics:', err.message));
 askForConsent();
 
 // "/" focuses search from anywhere outside a text field.

@@ -8,6 +8,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { deepLinkPath, DEEP_LINK } = require('./links.js');
+const { appVersion, stampHtml } = require('./app-version.js');
 
 const APP_ROOT = path.resolve(__dirname, '..', 'app');
 const ORIGIN = 'app://zotune';
@@ -132,6 +133,11 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle('app', (request) => {
       const { file, status } = resolveFile(request.url);
       if (!file) return new Response(null, { status });
+      // The page carries the version from package.json (desktop/app-version.js).
+      if (file === path.join(APP_ROOT, 'index.html')) {
+        const html = stampHtml(fs.readFileSync(file, 'utf8'), appVersion(path.resolve(APP_ROOT, '..')));
+        return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
+      }
       return net.fetch(pathToFileURL(file).toString());
     });
     createWindow();

@@ -1,16 +1,11 @@
-// The app version, from app/version.json (written by scripts/version.mjs).
-
-let loading = null;
+// The app version, as the page carries it in its application-name meta.
+// The release build, the development server and the desktop app fill it in
+// from package.json (desktop/app-version.js); app/index.html leaves it empty.
 
 export function appVersion() {
-  loading ??= fetch(new URL('../version.json', import.meta.url), { cache: 'no-cache' })
-    .then((res) => {
-      if (!res.ok) throw new Error(`version.json: HTTP ${res.status}`);
-      return res.json();
-    })
-    .catch((err) => {
-      loading = null;
-      throw err;
-    });
-  return loading;
+  const version = document.querySelector('meta[name="application-name"]')?.dataset.version;
+  if (!version) throw new Error('this page carries no version (it was not served by npm run serve, the desktop app or a release build)');
+  const m = /^(\d{2})\.(\d{2})\.(\d{2})\.\d+$/.exec(version);
+  if (!m) throw new Error(`the page carries an invalid version: ${version}`);
+  return { version, date: `20${m[1]}-${m[2]}-${m[3]}` };
 }

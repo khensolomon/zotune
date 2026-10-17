@@ -4,6 +4,7 @@ import { definitionPath } from '../router.js';
 import * as actions from '../actions.js';
 import { appVersion } from '../version.js';
 import * as analytics from '../analytics.js';
+import { askForConsent } from '../components/consent.js';
 
 const capital = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -53,12 +54,35 @@ function statisticsChooser() {
     });
     return b;
   });
-  return h(
+  const mode = analytics.currentMode();
+  let local = null;
+  if (mode !== 'live') {
+    const again = h('button', { type: 'button', class: 'btn' }, 'Show the consent card again');
+    again.addEventListener('click', () => {
+      analytics.resetChoice();
+      buttons.forEach((x) => x.setAttribute('aria-pressed', 'false'));
+      askForConsent({ delay: 0 });
+    });
+    local = h(
+      'div',
+      { class: 'setting' },
+      h(
+        'p',
+        { class: 'meta-line' },
+        mode === 'debug'
+          ? 'Local test: events are sent to Google Analytics marked as debug; see Admin → DebugView.'
+          : ['Local preview: nothing is sent. Each event is printed in the browser console. To send events to GA DebugView, open the page with ', h('code', null, '?analytics=send'), '.']
+      ),
+      again
+    );
+  }
+  const chooser = h(
     'div',
     { class: 'setting' },
     h('div', { class: 'seg', role: 'group', 'aria-label': 'Usage statistics' }, buttons),
     h('p', { class: 'meta-line' }, 'Google Analytics counts page views and searches (single words only, with whether they were found), bookmarks, likes and answers. Nothing is sent while this is off. ', h('a', { href: '/about#privacy' }, 'Details'))
   );
+  return h('div', null, chooser, local);
 }
 
 function markList(items, emptyText) {
@@ -97,7 +121,7 @@ export default {
         actions.marks('bookmark'),
         actions.marks('like'),
         actions.outbox(),
-        appVersion().catch((err) => ({ error: err.message }))
+        (async () => appVersion())().catch((err) => ({ error: err.message }))
       ]);
       const proposals = outbox.filter((o) => o.type === 'proposal');
       const stat = (value, label) => h('div', { class: 'stat' }, h('b', null, String(value)), h('span', null, label));

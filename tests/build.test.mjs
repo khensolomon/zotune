@@ -7,14 +7,17 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildSite, replaceOnce, hashedPath } from '../scripts/build.mjs';
 import { readMessage, plan, stampedVersion } from '../scripts/release-plan.mjs';
+import { fromSemver } from '../scripts/version.mjs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 test('the build is complete: every file the page and the service worker name exists and parses', async () => {
   const out = await mkdtemp(join(tmpdir(), 'zotune-build-'));
   try {
-    const { files, shell } = await buildSite(out);
+    const { files, shell, version } = await buildSite(out);
     const html = await readFile(join(out, 'index.html'), 'utf8');
+    assert.match(html, new RegExp(`data-version="${version.replaceAll('.', '\\.')}"`), 'the built page carries the version');
+    assert.equal(version, fromSemver(JSON.parse(read('package.json')).version));
     // Files the page loads (script and link tags); <a> links are routes, not files.
     const refs = [...html.matchAll(/<(?:script|link)\b[^>]*?\b(?:src|href)="(\/[^"]+)"/g)].map((m) => m[1]);
     for (const ref of refs) assert.ok(existsSync(join(out, ref)), `index.html names ${ref}, which the build lacks`);
@@ -61,8 +64,9 @@ test('release messages name a target, and only what is set up is released', () =
   assert.throws(() => plan('all', '26.10.17.3'), /desktop is not set up/);
 });
 
-test('the release plan reads the stamped version and refuses a half-stamped one', () => {
-  assert.equal(stampedVersion(read), JSON.parse(read('app/version.json')).version);
-  const stale = (p) => (p === 'app/index.html' ? read(p).replace(/data-version="[^"]*"/, 'data-version="00.01.01.1"') : read(p));
-  assert.throws(() => stampedVersion(stale), /app\/index\.html does not carry it/);
+test('the release plan reads the version from package.json and refuses a half-stamped one', () => {
+  const version = fromSemver(JSON.parse(read('package.json')).version);
+  assert.equal(stampedVersion(read), version);
+  const stale = (p) => (p === 'package-lock.json' ? read(p).replace(/"version": "[^"]*"/, '"version": "26.101.1"') : read(p));
+  assert.throws(() => stampedVersion(stale), /package-lock\.json is not/);
 });
