@@ -64,6 +64,11 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.18.1 — 2026-10-18
+
+- The side column of a definition reads as a summary: the entry at a glance in a plain sentence, the English words that find it, and how many meanings are checked (with a short explanation). A list of meanings appears only for entries with four or more.
+- While the search box is in use, the page behind it is lightly blurred under a soft veil instead of darkened, and the box keeps a gentle shadow.
+
 ### v26.10.17.10 — 2026-10-17
 
 - A Credits page (/credits): an introduction written in app/content/credits.md, then every source the dictionary names, with its credit, owner, licence or permission and website, read from the dictionary's configuration.
