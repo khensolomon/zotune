@@ -40,7 +40,7 @@
   --bad: #b3261e;
   --band: #8c1d24;
   --on-accent: #ffffff;
-  --dim: rgba(31, 28, 25, 0.4);
+  --dim: rgba(31, 28, 25, 0.14);
   --logo-zo: #8c1d24;
   --logo-tune: #1f1c19;
   --logo-dot: #d23a2c;
@@ -75,7 +75,7 @@
     --ok: #52b582;
     --bad: #ec6f64;
     --on-accent: #141210;
-    --dim: rgba(0, 0, 0, 0.66);
+    --dim: rgba(0, 0, 0, 0.38);
     --shadow-field: 0 0 0 1px #2c2723, 0 4px 16px rgba(0, 0, 0, 0.45);
     --shadow-bar: 0 1px 0 var(--line), 0 8px 24px rgba(0, 0, 0, 0.5);
     --logo-zo: #e06a72;
@@ -102,7 +102,7 @@
   --ok: #52b582;
   --bad: #ec6f64;
   --on-accent: #141210;
-  --dim: rgba(0, 0, 0, 0.66);
+  --dim: rgba(0, 0, 0, 0.38);
   --shadow-field: 0 0 0 1px #2c2723, 0 4px 16px rgba(0, 0, 0, 0.45);
   --shadow-bar: 0 1px 0 var(--line), 0 8px 24px rgba(0, 0, 0, 0.5);
   --logo-zo: #e06a72;
@@ -879,10 +879,20 @@ a.card:hover { box-shadow: inset 0 0 0 1px var(--line-2), var(--shadow-field); }
   inset: 0;
   z-index: 25;
   background: var(--dim);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease;
+  transition: opacity 180ms ease;
 }
+/* Without blur the veil alone has to set the page back. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dim { background: rgba(31, 28, 25, 0.32); }
+}
+/* Over a blurred page the field needs no heavy shadow to stand out. */
+body.is-dimmed .search-box,
+body.is-dimmed .search.is-open .search-box,
+body.is-dimmed .suggest { box-shadow: 0 0 0 1px var(--line), 0 6px 24px rgba(31, 28, 25, 0.08); }
 .dim.on { opacity: 1; pointer-events: auto; }
 .search.is-active { z-index: 40; }
 body.is-dimmed .searchbar { z-index: 40; background: transparent; box-shadow: none; }
