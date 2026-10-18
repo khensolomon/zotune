@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { matchKey, markedParts } from '../app/js/text.js';
 import { buildIndex, search, resolve, neighbours } from '../app/js/search-index.js';
@@ -92,4 +93,11 @@ test('hash addresses become plain paths; anchors are left alone', () => {
   assert.equal(hashPath('#words', o), null);
   assert.equal(hashPath('', o), null);
   assert.equal(hashPath('#//evil.example/x', o), null);
+});
+
+test('the security policy lets only the support forms leave the site', () => {
+  const html = readFileSync(new URL('../app/index.html', import.meta.url), 'utf8');
+  const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)[1];
+  const formAction = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('form-action '));
+  assert.equal(formAction, "form-action 'self' https://www.paypal.com https://github.com");
 });
