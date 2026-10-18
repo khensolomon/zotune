@@ -1100,3 +1100,46 @@ a.tok-w:hover { text-decoration: underline; text-underline-offset: 3px; }
 h2 .info-btn { margin-left: 8px; }
 .info-note { display: block; padding: 8px 10px; border-radius: 8px; background: var(--hover); color: var(--body); font-size: 13px; line-height: 1.5; }
 .build .info-note { margin-top: -6px; }
+
+/* Support: an invitation, not an advert */
+.support {
+  margin-top: 36px;
+  padding: 22px 24px 20px;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--puan) 9%, transparent), transparent 60%),
+    var(--surface);
+}
+.support h2 { margin: 0 0 8px; }
+.support p { margin: 0 0 14px; }
+.support-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px; }
+.support-actions form { margin: 0; }
+.support-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 180ms var(--spring), background 140ms ease, box-shadow 140ms ease;
+}
+.support-actions button .icon { width: 18px; height: 18px; }
+.support-actions button:hover { transform: translateY(-1px); }
+.support-actions button:active { transform: scale(0.97); }
+.support-actions button:focus-visible { outline: 2px solid var(--puan); outline-offset: 2px; }
+.support-actions .icon-paypal { background: var(--ink); color: var(--bg); }
+.support-actions .icon-paypal:hover { box-shadow: 0 6px 18px rgba(31, 28, 25, 0.18); }
+.support-actions .icon-github { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
+.support-actions .icon-github .icon { color: var(--puan); }
+.support-actions .icon-github:hover { box-shadow: inset 0 0 0 1px var(--line-2), 0 6px 18px rgba(31, 28, 25, 0.1); }
+.support-note { font-size: 13.5px; color: var(--muted); }
+@media (max-width: 640px) {
+  .support { padding: 18px 16px 16px; }
+  .support-actions form, .support-actions button { width: 100%; justify-content: center; }
+  .support-actions form { flex: 1 1 100%; }
+}

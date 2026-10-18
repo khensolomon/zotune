@@ -64,6 +64,10 @@ A new version is made with `node scripts/version.mjs --note "…" --apply`; with
 
 ## Versions
 
+### v26.10.18.2 — 2026-10-18
+
+- About has a "Support zotune" section with Donate with PayPal and GitHub Sponsor, set in a soft panel as an invitation rather than an advert; both open in a new tab. The links to Privacy, Terms, Cookies and Credits there are gone, since the footer has them.
+
 ### v26.10.18.1 — 2026-10-18
 
 - The side column of a definition reads as a summary: the entry at a glance in a plain sentence, the English words that find it, and how many meanings are checked (with a short explanation). A list of meanings appears only for entries with four or more.
